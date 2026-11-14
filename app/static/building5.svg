@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 320" role="img" aria-label="5-оқу корпусы">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cfe0ff"/>
+      <stop offset="1" stop-color="#f4f7ff"/>
+    </linearGradient>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3efe6"/>
+      <stop offset="1" stop-color="#e2dccd"/>
+    </linearGradient>
+  </defs>
+  <rect width="520" height="320" rx="18" fill="url(#sky)"/>
+  <circle cx="440" cy="60" r="26" fill="#ffd56b"/>
+  <g fill="#5aa469">
+    <circle cx="48" cy="232" r="26"/><circle cx="78" cy="242" r="20"/>
+    <circle cx="470" cy="234" r="24"/><circle cx="444" cy="244" r="18"/>
+  </g>
+  <rect x="44" y="246" width="6" height="30" fill="#7a5a3a"/>
+  <rect x="466" y="246" width="6" height="30" fill="#7a5a3a"/>
+  <rect x="100" y="92" width="320" height="186" fill="url(#wall)" stroke="#c9c0ab"/>
+  <rect x="100" y="80" width="320" height="16" fill="#1b3f8b"/>
+  <rect x="210" y="56" width="100" height="40" fill="#1b3f8b"/>
+  <text x="260" y="84" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#fff" text-anchor="middle">5</text>
+  <g fill="#7fa7e6" stroke="#5c7fb8">
+    <rect x="118" y="112" width="34" height="34"/><rect x="162" y="112" width="34" height="34"/>
+    <rect x="206" y="112" width="34" height="34"/><rect x="280" y="112" width="34" height="34"/>
+    <rect x="324" y="112" width="34" height="34"/><rect x="368" y="112" width="34" height="34"/>
+    <rect x="118" y="160" width="34" height="34"/><rect x="162" y="160" width="34" height="34"/>
+    <rect x="206" y="160" width="34" height="34"/><rect x="280" y="160" width="34" height="34"/>
+    <rect x="324" y="160" width="34" height="34"/><rect x="368" y="160" width="34" height="34"/>
+    <rect x="118" y="208" width="34" height="34"/><rect x="162" y="208" width="34" height="34"/>
+    <rect x="324" y="208" width="34" height="34"/><rect x="368" y="208" width="34" height="34"/>
+  </g>
+  <rect x="226" y="206" width="68" height="72" fill="#1b3f8b"/>
+  <rect x="234" y="214" width="24" height="64" fill="#9cc0ff"/>
+  <rect x="262" y="214" width="24" height="64" fill="#9cc0ff"/>
+  <rect x="214" y="196" width="92" height="10" fill="#e0a526"/>
+  <rect x="0" y="276" width="520" height="44" fill="#d8d3c4"/>
+  <rect x="236" y="276" width="48" height="44" fill="#c8c1ad"/>
+  <g font-family="Arial, sans-serif" font-size="12" font-weight="700" text-anchor="middle">
+    <rect x="128" y="250" width="56" height="20" rx="10" fill="#1b3f8b"/><text x="156" y="264" fill="#fff">IT</text>
+    <rect x="336" y="250" width="56" height="20" rx="10" fill="#e0a526"/><text x="364" y="264" fill="#1c2333">3D</text>
+  </g>
+</svg>
