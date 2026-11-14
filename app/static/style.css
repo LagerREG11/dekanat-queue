@@ -165,6 +165,10 @@ main { flex: 1; padding: 22px 0 40px; }
 .btn-block { display: block; width: 100%; }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.confirm-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px;
+  padding: 10px 12px; border: 1px solid #efc2c2; border-left: 4px solid var(--danger);
+  border-radius: 8px; background: var(--danger-bg); color: #7d1a1a; }
+.confirm-bar span { flex: 1 1 200px; font-weight: 600; }
 .actions form { margin: 0; }
 
 /* ---------- Құпиясөз беріктігі ---------- */

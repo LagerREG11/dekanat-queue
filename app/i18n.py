@@ -692,6 +692,8 @@ TRANSLATIONS["kk"].update({
     "now_title": "Қазір деканатта",
     "admission_short": "Қабылдау комиссиясы",
     "booking_hours": "Талон беру уақыты",
+    "confirm_yes": "Иә, растаймын",
+    "confirm_no": "Болдырмау",
 })
 
 TRANSLATIONS["ru"].update({
@@ -781,6 +783,8 @@ TRANSLATIONS["ru"].update({
     "now_title": "Сейчас в деканате",
     "admission_short": "Приёмная комиссия",
     "booking_hours": "Выдача талонов",
+    "confirm_yes": "Да, подтверждаю",
+    "confirm_no": "Отмена",
 })
 
 

@@ -11,7 +11,7 @@
   <link rel="icon" href="{{ url_for('static', filename='logo.svg') }}">
 </head>
 {% set ep = request.endpoint %}
-<body class="{% block body_class %}{% endblock %}" {% block body_attrs %}{% endblock %}>
+<body class="{% block body_class %}{% endblock %}" data-yes="{{ t('confirm_yes') }}" data-no="{{ t('confirm_no') }}" {% block body_attrs %}{% endblock %}>
 
 <div class="topline">
   <div class="container">

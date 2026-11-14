@@ -16,9 +16,36 @@
   }
 
   // ---------- Растауды талап ететін формалар (бас тарту, өшіру) ----------
+  // window.confirm() кейбір браузерлерде (Instagram/Telegram ішіндегі браузер, «диалогтарға
+  // тыйым салу» белгіленген Chrome) бірден «Болдырмау» қайтарады — сонда өшіру мүлде орындалмайды.
+  // Сондықтан растау беттің өзінде көрсетіледі.
   document.querySelectorAll("form[data-confirm]").forEach(function (f) {
     f.addEventListener("submit", function (e) {
-      if (!window.confirm(f.dataset.confirm)) e.preventDefault();
+      if (f.dataset.confirmed === "1") return;
+      e.preventDefault();
+      if (f.querySelector(".confirm-bar")) return;
+      const bar = document.createElement("div");
+      bar.className = "confirm-bar";
+      bar.setAttribute("role", "alertdialog");
+      const text = document.createElement("span");
+      text.textContent = f.dataset.confirm;
+      const yes = document.createElement("button");
+      yes.type = "button";
+      yes.className = "btn btn-danger";
+      yes.textContent = body.dataset.yes || "OK";
+      const no = document.createElement("button");
+      no.type = "button";
+      no.className = "btn";
+      no.textContent = body.dataset.no || "×";
+      yes.addEventListener("click", function () {
+        f.dataset.confirmed = "1";
+        bar.remove();
+        f.submit();
+      });
+      no.addEventListener("click", function () { bar.remove(); });
+      bar.append(text, yes, no);
+      f.appendChild(bar);
+      yes.focus();
     });
   });
 
