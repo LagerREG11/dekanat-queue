@@ -156,3 +156,14 @@ def test_operator_page_has_live_hooks(client):
     login(client, "dekanat", "dekanat1", "Dekanat2026")
     html = client.get("/dekanat").get_data(as_text=True)
     assert 'id="waiting-body"' in html and 'id="new-ticket-alert"' in html and "/api/staff/queue" in html
+
+
+def test_local_clock_uses_qyzylorda_time():
+    """Хостинг UTC-пен жұмыс істесе де, деканат уақыты UTC+5 болуы керек."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.web import _local_clock
+    local = _local_clock("Asia/Qyzylorda")()
+    utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    assert abs((local - utc) - timedelta(hours=5)) < timedelta(minutes=1)
+    assert abs(_local_clock("No/Such_Zone")() - datetime.now()) < timedelta(minutes=1)

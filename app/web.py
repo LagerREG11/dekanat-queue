@@ -17,6 +17,7 @@ import sys
 import time
 from collections import defaultdict, deque
 from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from functools import wraps
 from pathlib import Path
 
@@ -47,7 +48,7 @@ def create_app(config: dict | None = None) -> Flask:
         CHECK_HOURS=os.environ.get("QUEUE_DEMO", "1") != "1",  # демо: уақыт тексерілмейді
         RATE_LIMIT=5,            # бір IP-ден минутына неше талон / тіркелу
         LOGIN_LIMIT=10,          # бір IP-ден минутына неше кіру әрекеті
-        NOW=datetime.now,        # тесттерде уақытты ауыстыру үшін
+        NOW=_local_clock(os.environ.get("APP_TIMEZONE", DEFAULT_TIMEZONE)),  # тесттерде ауыстырылады
         PUBLIC_URL=os.environ.get("PUBLIC_URL", ""),  # QR-кодтағы мекенжай (телефондар үшін)
         SHOW_DEMO_ACCOUNTS=os.environ.get("SHOW_DEMO_ACCOUNTS", "1") != "0",  # хостингте 0
         TESTING=False,
@@ -81,6 +82,23 @@ def create_app(config: dict | None = None) -> Flask:
     _register_dekanat_routes(app)
     _register_admin_routes(app)
     return app
+
+
+DEFAULT_TIMEZONE = "Asia/Qyzylorda"  # Қызылорда, UTC+5
+
+
+def _local_clock(tz_name: str):
+    """Деканаттың жергілікті уақытын қайтаратын функция.
+
+    Хостинг серверлері UTC уақытымен жұмыс істейді, сондықтан уақыт белдеуін
+    сервер баптауына емес, zoneinfo арқылы тікелей қолданамыз. Уақыт белдеуі
+    табылмаса (мысалы, tzdata орнатылмаған Windows) — компьютердің уақыты алынады.
+    """
+    try:
+        zone = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return datetime.now
+    return lambda: datetime.now(zone).replace(tzinfo=None)
 
 
 def _load_or_create_secret() -> str:
