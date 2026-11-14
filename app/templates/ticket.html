@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ ticket.number }}{% endblock %}
+{% block body_attrs %}data-page="ticket" data-api="{{ url_for('api_ticket', token=ticket.token) }}"{% endblock %}
+{% block content %}
+<section class="box ticket {{ 'is-called' if view.status == 'called' }}" id="ticket-card">
+  <p class="muted">{{ t('ticket_title') }}</p>
+  <div class="ticket-number">{{ ticket.number }}</div>
+  <p>{{ t('service') }}: <b>{{ service_name }}</b></p>
+
+  <div class="called-box" id="called-box" {{ '' if view.status == 'called' else 'hidden' }}>
+    {{ t('go_to_window') }} <span class="window-big" id="t-window">{{ view.window or '' }}</span>
+  </div>
+
+  <table class="table">
+    <tr><td>{{ t('status') }}</td><td><span class="status status-{{ view.status }}" id="t-status">{{ view.status_text }}</span></td></tr>
+    <tr><td>{{ t('ahead') }}</td><td><b id="t-ahead">{{ view.ahead }}</b> {{ t('people') }}</td></tr>
+    <tr><td>{{ t('estimate') }}</td><td>~<b id="t-estimate">{{ view.estimate }}</b> {{ t('min') }}</td></tr>
+    <tr><td>{{ t('created') }}</td><td>{{ ticket.created_at[11:16] }}</td></tr>
+  </table>
+
+  <div class="alert alert-warn" id="t-late" {{ '' if view.late else 'hidden' }}>{{ t('late_warning') }}</div>
+  <p class="small muted">{{ t('ticket_save') }} {{ t('auto_refresh') }}.</p>
+
+  <div class="actions">
+    {% if view.status == 'waiting' and is_owner %}
+    <form method="post" action="{{ url_for('student_cancel', ticket_id=ticket.id) }}" data-confirm="{{ t('cancel_confirm') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn btn-danger" type="submit">{{ t('cancel_ticket') }}</button>
+    </form>
+    {% endif %}
+    {% if is_owner %}<a class="btn" href="{{ url_for('student_cabinet') }}">{{ t('nav_cabinet') }}</a>{% endif %}
+  </div>
+</section>
+{% endblock %}

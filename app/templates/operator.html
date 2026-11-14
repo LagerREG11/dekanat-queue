@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ t('op_panel') }}{% endblock %}
+{% block body_attrs %}data-page="operator" data-api="{{ url_for('api_staff_queue') }}" data-current="{{ current.number if current else '' }}" data-on-break="{{ 1 if op.on_break else 0 }}" data-new="{{ t('new_ticket_alert') }}" data-priority="{{ t('priority') }}" data-l-ticket="{{ t('board_ticket') }}" data-l-student="{{ t('student') }}" data-l-group="{{ t('group') }}" data-l-time="{{ t('created') }}"{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ t('op_panel') }}</h1>
+<p class="page-sub">{{ op.full_name }} · {{ t('op_window') }}{{ op.window_no or '—' }} ·
+  {{ t('op_services') }}: {% for s in services %}{{ s.code }}{{ ', ' if not loop.last }}{% else %}—{% endfor %}</p>
+
+{% if not op.window_no or not services %}<div class="alert alert-warn">{{ t('no_window_hint') }}</div>{% endif %}
+<div class="alert alert-info" id="new-ticket-alert" hidden></div>
+
+<div class="break-bar">
+  {% if op.on_break %}
+    <span class="state-break">{{ t('op_on_break') }}</span>
+  {% else %}
+    <span class="muted">{{ t('now_status') }}: <span class="state-{{ sched().status }}">{{ t('status_' + sched().status) }}</span></span>
+  {% endif %}
+  <form method="post" action="{{ url_for('dekanat_break') }}" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn {{ 'btn-success' if op.on_break }}" type="submit">{{ t('op_break_end') if op.on_break else t('op_break_start') }}</button>
+  </form>
+</div>
+
+<div class="cols-wide">
+  <section class="box">
+    <h2 class="box-title">{{ t('op_current') }}</h2>
+    {% if current %}
+      <div class="current-number">{{ current.number }}</div>
+      <p><b>{{ current.full_name }}</b>{% if current.group_name %}, {{ current.group_name }}{% endif %}<br>
+        <span class="muted">{{ current['name_' + lang] }}, ID {{ current.student_id }}</span>
+        {% if current.priority %}<span class="tag tag-warn">{{ t('priority') }}</span>{% endif %}</p>
+      <div class="actions">
+        {% for action, label, cls in [('done', 'op_done', 'btn-primary'), ('no_show', 'op_no_show', 'btn-danger'),
+                                      ('recall', 'op_recall', ''), ('return', 'op_return', '')] %}
+        <form method="post" action="{{ url_for('dekanat_action', ticket_id=current.id, action=action) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn {{ cls }}" type="submit">{{ t(label) }}</button>
+        </form>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">{{ t('op_none') }}</p>
+      <form method="post" action="{{ url_for('dekanat_next') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-primary btn-big" type="submit" {{ 'disabled' if op.on_break }}>{{ t('op_call_next') }}</button>
+      </form>
+    {% endif %}
+  </section>
+
+  <section class="box">
+    <h2 class="box-title">{{ t('op_stats') }}</h2>
+    <table class="stats">
+      <tr><td>{{ t('s_total') }}</td><td id="stat-total">{{ stats.total }}</td></tr>
+      <tr><td>{{ t('s_waiting') }}</td><td id="stat-waiting">{{ stats.waiting }}</td></tr>
+      <tr><td>{{ t('s_done') }}</td><td id="stat-done">{{ stats.done }}</td></tr>
+      <tr><td>{{ t('s_no_show') }}</td><td id="stat-no_show">{{ stats.no_show }}</td></tr>
+      <tr><td>{{ t('s_cancelled') }}</td><td id="stat-cancelled">{{ stats.cancelled }}</td></tr>
+      <tr><td>{{ t('s_avg_wait') }}</td><td id="stat-avg_wait">{{ stats.avg_wait }}</td></tr>
+      <tr><td>{{ t('s_avg_service') }}</td><td id="stat-avg_service">{{ stats.avg_service }}</td></tr>
+    </table>
+  </section>
+</div>
+
+<section class="box">
+  <h2 class="box-title">{{ t('op_waiting_list') }} (<span id="waiting-count">{{ waiting|length }}</span>)</h2>
+  <table class="table table-cards" id="waiting-table" {{ 'hidden' if not waiting }}>
+    <thead><tr><th>{{ t('board_ticket') }}</th><th>{{ t('student') }}</th><th>{{ t('group') }}</th><th>{{ t('created') }}</th></tr></thead>
+    <tbody id="waiting-body">
+    {% for w in waiting %}
+      <tr data-number="{{ w.number }}"><td data-label="{{ t('board_ticket') }}">{{ w.number }}{% if w.priority %} <span class="tag tag-warn">{{ t('priority') }}</span>{% endif %}</td>
+          <td data-label="{{ t('student') }}">{{ w.full_name }}</td>
+          <td data-label="{{ t('group') }}">{{ w.group_name or '—' }}</td>
+          <td data-label="{{ t('created') }}">{{ w.created_at[11:16] }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted" id="waiting-empty" {{ 'hidden' if waiting }}>{{ t('queue_empty') }}</p>
+</section>
+{% endblock %}

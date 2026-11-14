@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}{{ t('admin_panel') }}{% endblock %}
+{% block body_attrs %}data-page="manage" data-api="{{ url_for('api_manage_changes') }}" data-new="{{ t('new_ticket_alert') }}"{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ t('admin_panel') }}</h1>
+<p class="page-sub">{{ t('admin_hint') }}</p>
+
+<div class="alert alert-info" id="new-ticket-alert" hidden></div>
+<div class="stat-line">
+  <span>{{ t('s_total') }}: <b>{{ stats.total }}</b></span>
+  <span>{{ t('s_waiting') }}: <b>{{ stats.waiting }}</b></span>
+  <span>{{ t('s_done') }}: <b>{{ stats.done }}</b></span>
+  <span>{{ t('s_no_show') }}: <b>{{ stats.no_show }}</b></span>
+  <span>{{ t('s_avg_wait') }}: <b>{{ stats.avg_wait }}</b></span>
+  <span>{{ t('s_pending') }}: <b>{{ pending }}</b></span>
+</div>
+
+<div class="tabs">
+  {% for tb in ('users', 'schedule', 'services', 'tickets', 'audit') %}
+    <a class="{{ 'active' if tb == tab }}" href="{{ url_for('admin_panel', tab=tb) }}">{{ t('tab_' + tb) }}{% if tb == 'users' and pending %}<span class="count">{{ pending }}</span>{% endif %}</a>
+  {% endfor %}
+</div>
+
+{# ---------- Пайдаланушылар ---------- #}
+{% if tab == 'users' %}
+<section class="box">
+  <div class="filter">{{ t('filter') }}:
+    <a class="{{ 'active' if not role_filter }}" href="{{ url_for('admin_panel', tab='users') }}">{{ t('all') }}</a>
+    {% for r in roles %}
+      <a class="{{ 'active' if role_filter == r }}" href="{{ url_for('admin_panel', tab='users', role=r) }}">{{ t('role_' + r) }}</a>
+    {% endfor %}
+  </div>
+
+  {% for u in users %}
+    <details class="user-row {{ 'pending' if not u.is_active }}">
+      <summary>
+        <b>{{ u.full_name }}</b>
+        <span class="tag tag-role">{{ t('role_' + u.role) }}</span>
+        <span class="muted small">{{ u.username }}{% if u.group_name %}, {{ u.group_name }}{% endif %}{% if u.window_no %}, {{ t('window') | lower }} {{ u.window_no }}{% endif %}</span>
+        {% if not u.is_active %}<span class="tag tag-warn">{{ t('inactive') }}</span>{% endif %}
+        {% if u.on_duty %}<span class="tag tag-ok">{{ t('board_on_break') if u.on_break else t('on_duty') }}</span>{% endif %}
+      </summary>
+      <div class="body">
+      {% if u.id == user.id or not can_manage(u.role) %}
+        <span class="muted small">{{ t('no_rights_here') }}</span>
+      {% else %}
+        <form method="post" action="{{ url_for('admin_user_action', user_id=u.id, action='block' if u.is_active else 'activate') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn {{ '' if u.is_active else 'btn-primary' }}" type="submit">{{ t('block') if u.is_active else t('activate') }}</button>
+        </form>
+
+        <form method="post" action="{{ url_for('admin_user_action', user_id=u.id, action='role') }}" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="role" aria-label="{{ t('role') }}">
+            {% for r in assignable_roles %}<option value="{{ r }}" {{ 'selected' if r == u.role }}>{{ t('role_' + r) }}</option>{% endfor %}
+          </select>
+          <button class="btn" type="submit">{{ t('change_role') }}</button>
+        </form>
+
+        <form method="post" action="{{ url_for('admin_user_action', user_id=u.id, action='password') }}" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input name="password" type="text" placeholder="{{ t('f_new_password') }}" autocomplete="off" aria-label="{{ t('f_new_password') }}">
+          <button class="btn" type="submit">{{ t('reset_password') }}</button>
+        </form>
+
+        {% if u.role in staff_roles %}
+        <form method="post" action="{{ url_for('admin_user_action', user_id=u.id, action='staff') }}" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label class="small">{{ t('window') }} <input name="window_no" type="number" min="1" max="99" value="{{ u.window_no or '' }}" class="w-num"></label>
+          {% for s in services %}
+            <label class="small"><input type="checkbox" name="services" value="{{ s.id }}" {{ 'checked' if s.id in user_services[u.id] }}> {{ s.code }}</label>
+          {% endfor %}
+          <button class="btn" type="submit">{{ t('save') }}</button>
+        </form>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('admin_user_action', user_id=u.id, action='delete') }}" data-confirm="{{ t('delete_confirm') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-danger" type="submit">{{ t('delete') }}</button>
+        </form>
+      {% endif %}
+      </div>
+    </details>
+  {% else %}
+    <p class="muted">{{ t('nothing_found') }}</p>
+  {% endfor %}
+</section>
+
+<section class="box">
+  <h2 class="box-title">{{ t('create_user') }}</h2>
+  <form method="post" action="{{ url_for('admin_user_new') }}" class="form grid-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>{{ t('role') }}
+      <select name="role">{% for r in assignable_roles %}<option value="{{ r }}">{{ t('role_' + r) }}</option>{% endfor %}</select></label>
+    <label>{{ t('f_name') }} <input name="full_name" maxlength="80" required></label>
+    <label>{{ t('f_username') }} <span class="hint">{{ t('for_staff') }}</span><input name="username" maxlength="30"></label>
+    <label>{{ t('f_student_id') }} <span class="hint">{{ t('for_students') }}</span><input name="student_id" maxlength="12"></label>
+    <label>{{ t('group') }} <span class="hint">{{ t('for_students') }}</span><input name="group_name" maxlength="20"></label>
+    <label>{{ t('window') }} <input name="window_no" type="number" min="1" max="99"></label>
+    <label>{{ t('f_password') }} <input name="password" type="text" required autocomplete="off"></label>
+    <div><button class="btn btn-primary" type="submit">{{ t('create') }}</button></div>
+  </form>
+</section>
+{% endif %}
+
+{# ---------- Жұмыс кестесі ---------- #}
+{% if tab == 'schedule' %}
+<section class="box">
+  <h2 class="box-title">{{ t('tab_schedule') }}</h2>
+  <p class="muted small">{{ t('schedule_hint') }}</p>
+  <form method="post" action="{{ url_for('admin_schedule_save') }}" class="form narrow-left">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row">
+      <div><label for="open_at">{{ t('f_open_at') }}</label><input id="open_at" name="open_at" type="time" value="{{ sched_form.open_at }}" required></div>
+      <div><label for="close_at">{{ t('f_close_at') }}</label><input id="close_at" name="close_at" type="time" value="{{ sched_form.close_at }}" required></div>
+    </div>
+    <div class="row">
+      <div><label for="lunch_from">{{ t('f_lunch_from') }}</label><input id="lunch_from" name="lunch_from" type="time" value="{{ sched_form.lunch_from }}"></div>
+      <div><label for="lunch_to">{{ t('f_lunch_to') }}</label><input id="lunch_to" name="lunch_to" type="time" value="{{ sched_form.lunch_to }}"></div>
+    </div>
+    <label for="breaks">{{ t('f_breaks') }}</label>
+    <input id="breaks" name="breaks" type="text" value="{{ sched_form.breaks }}" placeholder="11:00-11:15, 16:00-16:15">
+    <label>{{ t('f_workdays') }}</label>
+    <div class="days">
+      {% for d in t('days_short').split(',') %}
+        <label><input type="checkbox" name="workdays" value="{{ loop.index0 }}" {{ 'checked' if loop.index0 in sched_form.workdays }}> {{ d }}</label>
+      {% endfor %}
+    </div>
+    <div class="buttons"><button class="btn btn-primary" type="submit">{{ t('save') }}</button></div>
+  </form>
+</section>
+{% endif %}
+
+{# ---------- Қызметтер ---------- #}
+{% if tab == 'services' %}
+<section class="box">
+  <h2 class="box-title">{{ t('tab_services') }}</h2>
+  <div class="table-wrap">
+    <table class="table">
+      <tr><th>{{ t('code') }}</th><th>{{ t('name_kk') }}</th><th>{{ t('name_ru') }}</th><th>{{ t('avg_min') }}</th><th>{{ t('active') }}</th><th></th></tr>
+      {% for s in services %}
+      <tr>
+        <td><input form="svc{{ s.id }}" name="code" value="{{ s.code }}" maxlength="2" class="w-code" aria-label="{{ t('code') }}"></td>
+        <td><input form="svc{{ s.id }}" name="name_kk" value="{{ s.name_kk }}" maxlength="80" aria-label="{{ t('name_kk') }}"></td>
+        <td><input form="svc{{ s.id }}" name="name_ru" value="{{ s.name_ru }}" maxlength="80" aria-label="{{ t('name_ru') }}"></td>
+        <td><input form="svc{{ s.id }}" name="avg_minutes" type="number" step="0.5" min="0.5" max="120" value="{{ s.avg_minutes }}" class="w-num" aria-label="{{ t('avg_min') }}"></td>
+        <td><input form="svc{{ s.id }}" type="checkbox" name="is_active" value="1" {{ 'checked' if s.is_active }} aria-label="{{ t('active') }}"></td>
+        <td><form id="svc{{ s.id }}" method="post" action="{{ url_for('admin_service_save') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="service_id" value="{{ s.id }}">
+              <button class="btn" type="submit">{{ t('save') }}</button></form></td>
+      </tr>
+      {% endfor %}
+      <tr>
+        <td><input form="svcnew" name="code" maxlength="2" class="w-code" placeholder="F" aria-label="{{ t('code') }}"></td>
+        <td><input form="svcnew" name="name_kk" maxlength="80" aria-label="{{ t('name_kk') }}"></td>
+        <td><input form="svcnew" name="name_ru" maxlength="80" aria-label="{{ t('name_ru') }}"></td>
+        <td><input form="svcnew" name="avg_minutes" type="number" step="0.5" min="0.5" max="120" value="5" class="w-num" aria-label="{{ t('avg_min') }}"></td>
+        <td><input form="svcnew" type="checkbox" name="is_active" value="1" checked aria-label="{{ t('active') }}"></td>
+        <td><form id="svcnew" method="post" action="{{ url_for('admin_service_save') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-primary" type="submit">{{ t('add') }}</button></form></td>
+      </tr>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{# ---------- Талондар ---------- #}
+{% if tab == 'tickets' %}
+<section class="box">
+  <h2 class="box-title">{{ t('tickets_today') }} ({{ tickets|length }})</h2>
+  <p class="muted small">{{ t('tickets_fix_hint') }}</p>
+  {% if tickets %}
+  <table class="table table-cards">
+    <thead><tr><th>{{ t('board_ticket') }}</th><th>{{ t('student') }}</th><th>{{ t('created') }}</th><th>{{ t('window') }}</th><th>{{ t('status') }}</th><th></th></tr></thead>
+    <tbody>
+    {% for tk in tickets %}
+      <tr>
+        <td data-label="{{ t('board_ticket') }}">{{ tk.number }}</td>
+        <td data-label="{{ t('student') }}">{{ tk.full_name }} <span class="muted small">{{ tk.group_name }}</span></td>
+        <td data-label="{{ t('created') }}">{{ tk.created_at[11:16] }}</td>
+        <td data-label="{{ t('window') }}">{{ tk.window_no or '—' }}</td>
+        <td data-label="{{ t('status') }}" class="cell-wide">
+          <form method="post" action="{{ url_for('admin_ticket_action', ticket_id=tk.id, action='status') }}" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="status" aria-label="{{ t('status') }}">
+              {% for st in statuses %}{% if st != 'called' or tk.status == 'called' %}
+                <option value="{{ st }}" {{ 'selected' if st == tk.status }}>{{ t('st_' + st) }}</option>
+              {% endif %}{% endfor %}
+            </select>
+            <button class="btn" type="submit">{{ t('save') }}</button>
+          </form>
+        </td>
+        <td class="cell-wide">
+          <form method="post" action="{{ url_for('admin_ticket_action', ticket_id=tk.id, action='delete') }}" data-confirm="{{ t('delete_confirm') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-danger" type="submit">{{ t('delete') }}</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted">{{ t('queue_empty') }}</p>
+  {% endif %}
+</section>
+{% endif %}
+
+{# ---------- Журнал ---------- #}
+{% if tab == 'audit' %}
+<section class="box">
+  <h2 class="box-title">{{ t('tab_audit') }}</h2>
+  <table class="table table-cards">
+    <thead><tr><th>{{ t('date') }}</th><th>{{ t('f_username') }}</th><th>{{ t('action') }}</th><th>{{ t('details') }}</th></tr></thead>
+    <tbody>
+    {% for a in audit %}
+      <tr><td data-label="{{ t('date') }}">{{ a.created_at }}</td><td data-label="{{ t('f_username') }}">{{ a.username or '—' }}</td>
+          <td data-label="{{ t('action') }}">{{ a.action }}</td><td data-label="{{ t('details') }}">{{ a.details }}</td></tr>
+    {% else %}
+      <tr><td colspan="4" class="muted">{{ t('nothing_found') }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

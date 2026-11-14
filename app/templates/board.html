@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ t('board_title') }}{% endblock %}
+{% block body_attrs %}data-page="board" data-api="{{ url_for('api_board') }}" data-empty="{{ t('board_empty') }}" data-break="{{ t('board_on_break') }}" data-working="{{ t('board_working') }}" data-window="{{ t('window') }}"{% endblock %}
+{% block content %}
+<div class="board-head">
+  <h1>{{ t('board_title') }}</h1>
+  <span class="clock" id="clock"></span>
+</div>
+
+<div class="board">
+  <section class="box">
+    <h2 class="box-title">{{ t('board_called') }}</h2>
+    <table class="board-table">
+      <thead><tr><th>{{ t('board_ticket') }}</th><th>{{ t('board_window') }}</th></tr></thead>
+      <tbody id="called-list">
+        {% for c in data.called %}
+          <tr class="{{ 'fresh' if loop.first }}"><td>{{ c.number }}</td><td>{{ c.window_no }}</td></tr>
+        {% else %}
+          <tr><td class="empty" colspan="2">{{ t('board_empty') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <div>
+    <section class="box">
+      <h2 class="box-title">{{ t('board_next') }}</h2>
+      <ul class="next-list" id="waiting-list">
+        {% for n in data.waiting %}<li>{{ n }}</li>{% endfor %}
+      </ul>
+    </section>
+
+    <section class="box">
+      <h2 class="box-title">{{ t('board_windows') }}</h2>
+      <ul class="windows-list" id="windows-list">
+        {% for w in data.windows %}
+          <li><span>{{ t('window') }} {{ w.window_no }}</span>
+            <span class="{{ 'state-break' if w.on_break else 'state-open' }}">{{ t('board_on_break') if w.on_break else t('board_working') }}</span></li>
+        {% endfor %}
+      </ul>
+      {% set s = sched() %}
+      <p class="small muted gap-top">{{ s.days }} {{ s.hours }}{% if s.lunch %}, {{ t('lunch_time') | lower }} {{ s.lunch }}{% endif %}{% if s.breaks %}, {{ t('short_breaks') | lower }}: {{ s.breaks | join(', ') }}{% endif %}</p>
+      <div class="qr">
+        <img src="{{ url_for('qr_code') }}" alt="QR" width="120" height="120">
+        <div class="small"><b>{{ t('qr_title') }}</b><br>{{ t('qr_text') }}<br><span class="qr-url">{{ public_url() }}</span></div>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

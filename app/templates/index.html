@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block content %}
+{% set s = sched() %}
+
+<div class="intro">
+  <section class="box">
+    <h1>{{ t('home_title') }}</h1>
+    <p>{{ t('hero_lead') }}</p>
+    <ol class="steps">
+      {% for i in range(1, 5) %}
+        <li><b>{{ t('step%d_title' % i) }}.</b> {{ t('step%d_text' % i) }}</li>
+      {% endfor %}
+    </ol>
+    <div class="actions">
+      {% if user %}
+        <a class="btn btn-primary btn-big" href="{{ url_for(role_home[user.role]) }}">{{ t('go_cabinet') }}</a>
+      {% else %}
+        <a class="btn btn-primary btn-big" href="{{ url_for('login', role='student') }}">{{ t('cta_take') }}</a>
+        <a class="btn btn-big" href="{{ url_for('register') }}">{{ t('nav_register') }}</a>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="box">
+    <h2 class="box-title">{{ t('live_title') }}</h2>
+    <p class="queue-total"><b>{{ total_waiting }}</b> {{ t('total_waiting') }}, {{ t('windows_open') | lower }}: {{ open_windows }}</p>
+    <table class="table">
+      <tr><th>{{ t('service') }}</th><th>{{ t('in_queue') }}</th><th>{{ t('estimate') }}</th></tr>
+      {% for sv in services %}
+        <tr><td>{{ sv.code }}. {{ sv['name_' + lang] }}</td><td>{{ sv.waiting }}</td><td>{{ sv.estimate }} {{ t('min') }}</td></tr>
+      {% endfor %}
+    </table>
+
+    <h3>{{ t('work_hours') }}</h3>
+    <ul class="hours-list">
+      <li><span>{{ s.days }}</span><span>{{ s.hours }}</span></li>
+      {% if s.lunch %}<li><span>{{ t('lunch_time') }}</span><span>{{ s.lunch }}</span></li>{% endif %}
+      {% if s.breaks %}<li><span>{{ t('short_breaks') }}</span><span>{{ s.breaks | join(', ') }}</span></li>{% endif %}
+      <li><span>{{ t('now_status') }}</span><span class="state-{{ s.status }}">{{ t('status_' + s.status) }}</span></li>
+    </ul>
+
+    <div class="qr">
+      <img src="{{ url_for('qr_code') }}" alt="QR" width="92" height="92">
+      <div class="small">
+        <b>{{ t('qr_title') }}</b><br>
+        {{ t('qr_text') }}<br>
+        <span class="qr-url">{{ public_url() }}</span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<section class="box">
+  <h2 class="box-title">{{ t('choose_role') }}</h2>
+  <ul class="role-list">
+    <li><b>{{ t('role_student') }}</b>{{ t('role_student_desc') }}
+      <div class="links"><a href="{{ url_for('login', role='student') }}">{{ t('nav_login') }}</a> ·
+        <a href="{{ url_for('register', kind='student') }}">{{ t('nav_register') }}</a></div></li>
+    <li><b>{{ t('role_dekanat') }}</b>{{ t('role_dekanat_desc') }}
+      <div class="links"><a href="{{ url_for('login', role='dekanat') }}">{{ t('nav_login') }}</a> ·
+        <a href="{{ url_for('register', kind='dekanat') }}">{{ t('nav_register') }}</a></div></li>
+    <li><b>{{ t('role_deputy') }}</b>{{ t('role_deputy_desc') }}
+      <div class="links"><a href="{{ url_for('login', role='deputy') }}">{{ t('nav_login') }}</a></div></li>
+    <li><b>{{ t('role_admin') }}</b>{{ t('role_admin_desc') }}
+      <div class="links"><a href="{{ url_for('login', role='admin') }}">{{ t('nav_login') }}</a></div></li>
+  </ul>
+</section>
+
+<section class="box" id="about">
+  <h2 class="box-title">{{ t('about_title') }}</h2>
+  <p>{{ uni.about }}</p>
+  <div class="facts">
+    {% for f in uni.facts %}<div><b>{{ f.value }}</b><span>{{ f.label }}</span></div>{% endfor %}
+  </div>
+  <h3>{{ t('institutes_title') }}</h3>
+  <ul>
+    {% for name in uni.institutes %}<li>{{ name }}</li>{% endfor %}
+  </ul>
+</section>
+
+<section class="box" id="history">
+  <h2 class="box-title">{{ t('history_title') }}</h2>
+  <ul class="history">
+    {% for h in uni.history %}<li><b>{{ h.year }}</b><span>{{ h.text }}</span></li>{% endfor %}
+  </ul>
+</section>
+
+<section class="box" id="building5">
+  <h2 class="box-title">{{ t('b5_title') }}</h2>
+  <div class="b5">
+    <div>
+      <img src="{{ url_for('static', filename='building5.svg') }}" alt="{{ t('b5_title') }}" width="520" height="320">
+      <p class="small muted">{{ uni.building5.address }} · <a href="{{ uni.building5.map_url }}" target="_blank" rel="noopener noreferrer">{{ t('b5_map') }}</a></p>
+    </div>
+    <div>
+      <p>{{ uni.building5.intro }}</p>
+      <ul>
+        {% for f in uni.building5.features %}<li>{{ f.text }}</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <h3>{{ t('buildings_title') }}</h3>
+  <div class="table-wrap">
+    <table class="table">
+      <tr><th>{{ t('col_building') }}</th><th>{{ t('col_address') }}</th><th>{{ t('col_note') }}</th></tr>
+      {% for b in uni.buildings %}
+        <tr class="{{ 'row-mark' if b.no == '5' }}"><td>{{ b.no }}</td><td>{{ b.address }}</td><td>{{ b.note or '—' }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</section>
+
+<section class="box" id="partners">
+  <h2 class="box-title">{{ t('partners_title') }}</h2>
+  <p>{{ t('partners_summary').format(c=uni.partners_total.countries, e=uni.partners_total.entries) }}</p>
+  <p>{{ uni.mobility }}</p>
+  <ul class="partners">
+    {% for p in uni.featured_partners %}
+      <li><b>{{ p.name }}</b> ({{ p.country }})<br><span class="muted">{{ p.text }}</span></li>
+    {% endfor %}
+  </ul>
+  <p class="small">{{ t('partners_full') }}
+    <a href="{{ uni.site }}/partners" target="_blank" rel="noopener noreferrer">korkyt.edu.kz/partners</a></p>
+</section>
+
+<section class="box" id="contacts">
+  <h2 class="box-title">{{ t('contacts_title') }}</h2>
+  <table class="table contacts-table">
+    <tr><td>{{ t('main_building') }}</td><td>{{ uni.contacts.main_building }}</td></tr>
+    <tr><td>{{ t('phone') }}</td><td>{{ uni.contacts.phone }}</td></tr>
+    <tr><td>{{ t('admission') }}</td><td>{{ uni.contacts.admission_phone }}</td></tr>
+    <tr><td>E-mail</td><td>{{ uni.contacts.email }}</td></tr>
+    <tr><td>{{ t('official_site') }}</td><td><a href="{{ uni.site }}" target="_blank" rel="noopener noreferrer">korkyt.edu.kz</a></td></tr>
+    <tr><td>{{ t('dekanat_hours') }}</td><td>{{ s.days }}, {{ s.hours }}{% if s.lunch %}; {{ t('lunch_time') | lower }} {{ s.lunch }}{% endif %}</td></tr>
+  </table>
+  <p class="small muted">{{ t('sources_note') }}</p>
+</section>
+{% endblock %}

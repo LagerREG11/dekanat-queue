@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{{ t('nav_cabinet') }}{% endblock %}
+{% block body_attrs %}data-page="student" data-api="{{ url_for('api_student_tickets') }}"{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ t('student_cabinet') }}</h1>
+<p class="page-sub">{{ user.full_name }}, {{ t('group') | lower }} {{ user.group_name }}, ID {{ user.student_id }}</p>
+
+<div class="cols">
+  <section class="box">
+    <h2 class="box-title">{{ t('form_title') }}</h2>
+    {% if not is_open %}<div class="alert alert-warn">{{ t('closed_now') }}</div>{% endif %}
+    <form method="post" action="{{ url_for('student_take_ticket') }}" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="service_id">{{ t('f_service') }}</label>
+      <select id="service_id" name="service_id" required>
+        <option value="">{{ t('f_choose') }}</option>
+        {% for s in services %}
+          <option value="{{ s.id }}">{{ s.code }}. {{ s['name_' + lang] }} ({{ s.waiting }} {{ t('people') }}, ~{{ s.estimate }} {{ t('min') }})</option>
+        {% endfor %}
+      </select>
+      <label class="check"><input type="checkbox" name="priority" value="1"> {{ t('f_priority') }}</label>
+      <div class="buttons">
+        <button class="btn btn-primary" type="submit" {{ 'disabled' if not is_open }}>{{ t('f_submit') }}</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="box">
+    <h2 class="box-title">{{ t('my_active') }}</h2>
+    {% for tk in active %}
+      <div class="my-ticket {{ 'is-called' if tk.status == 'called' }}">
+        <div>
+          <span class="num">{{ tk.number }}</span>
+          <span class="status status-{{ tk.status }}">{{ tk.view.status_text }}</span><br>
+          <span class="small muted">{{ tk['name_' + lang] }} ·
+            {% if tk.status == 'called' %}{{ t('window') }} {{ tk.window_no }}
+            {% else %}{{ t('ahead') }}: {{ tk.view.ahead }}, ~{{ tk.view.estimate }} {{ t('min') }}{% endif %}</span>
+        </div>
+        <div class="acts">
+          <a class="btn" href="{{ url_for('ticket_page', token=tk.token) }}">{{ t('open') }}</a>
+          {% if tk.status == 'waiting' %}
+          <form method="post" action="{{ url_for('student_cancel', ticket_id=tk.id) }}" data-confirm="{{ t('cancel_confirm') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-danger" type="submit">{{ t('cancel_short') }}</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    {% else %}
+      <p class="muted">{{ t('no_active') }}</p>
+    {% endfor %}
+  </section>
+</div>
+
+<section class="box">
+  <h2 class="box-title">{{ t('my_history') }}</h2>
+  {% if history %}
+  <table class="table table-cards">
+    <thead><tr><th>{{ t('date') }}</th><th>{{ t('board_ticket') }}</th><th>{{ t('service') }}</th><th>{{ t('status') }}</th></tr></thead>
+    <tbody>
+    {% for tk in history %}
+      <tr><td data-label="{{ t('date') }}">{{ tk.day }} {{ tk.created_at[11:16] }}</td>
+          <td data-label="{{ t('board_ticket') }}">{{ tk.number }}</td>
+          <td data-label="{{ t('service') }}">{{ tk['name_' + lang] }}</td>
+          <td data-label="{{ t('status') }}"><span class="status status-{{ tk.status }}">{{ t('st_' + tk.status) }}</span></td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted">{{ t('no_history') }}</p>
+  {% endif %}
+</section>
+{% endblock %}

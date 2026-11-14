@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ t('nav_profile') }}{% endblock %}
+{% block content %}
+<h1 class="page-title">{{ t('nav_profile') }}</h1>
+<div class="cols">
+  <section class="box">
+    <h2 class="box-title">{{ user.full_name }}</h2>
+    <table class="table">
+      <tr><td>{{ t('role') }}</td><td>{{ t('role_' + user.role) }}</td></tr>
+      <tr><td>{{ t('f_username') }}</td><td>{{ user.username }}</td></tr>
+      <tr><td>{{ t('registered') }}</td><td>{{ user.created_at[:10] }}</td></tr>
+      {% if user.role == 'student' %}
+        <tr><td>ID</td><td>{{ user.student_id }}</td></tr>
+        <tr><td>{{ t('group') }}</td><td>{{ user.group_name }}</td></tr>
+      {% else %}
+        <tr><td>{{ t('window') }}</td><td>{{ user.window_no or '—' }}</td></tr>
+        <tr><td>{{ t('op_services') }}</td><td>{% for s in services %}{{ s.code }} {% else %}—{% endfor %}</td></tr>
+      {% endif %}
+    </table>
+    <div class="actions"><a class="btn btn-primary" href="{{ url_for(role_home[user.role]) }}">{{ t('go_cabinet') }}</a></div>
+  </section>
+
+  <section class="box">
+    <h2 class="box-title">{{ t('change_password') }}</h2>
+    <form method="post" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="old_password">{{ t('f_old_password') }}</label>
+      <input id="old_password" name="old_password" type="password" required autocomplete="current-password">
+      <label for="password">{{ t('f_new_password') }}</label>
+      <input id="password" name="password" type="password" required autocomplete="new-password">
+      <span class="hint">{{ t('password_rules') }}</span>
+      <label for="password2">{{ t('f_password2') }}</label>
+      <input id="password2" name="password2" type="password" required autocomplete="new-password">
+      <div class="buttons"><button class="btn btn-primary" type="submit">{{ t('save') }}</button></div>
+    </form>
+  </section>
+</div>
+{% endblock %}

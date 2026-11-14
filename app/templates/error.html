@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="box narrow center">
+  <h1>{{ message }}</h1>
+  <p><a class="btn btn-primary" href="{{ url_for('index') }}">{{ t('nav_home') }}</a></p>
+</section>
+{% endblock %}
