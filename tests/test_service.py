@@ -196,33 +196,35 @@ def test_pick_next_empty():
 
 # ---------------- Тіркелу және құпиясөз ----------------
 @pytest.mark.parametrize("pw,ok", [
-    ("abcdefg1", True), ("Пароль2026", True),
-    ("abc1", False),            # тым қысқа
-    ("abcdefgh", False),        # цифр жоқ
+    ("Abcdefg1", True), ("Пароль2026", True), ("dana#2005", True),
+    ("abcdefg1", False),        # әлсіз: тек кіші әріп пен цифр
+    ("Abc1", False),            # тым қысқа
+    ("Abcdefgh", False),        # цифр жоқ
     ("12345678", False),        # әріп жоқ
     ("", False), (None, False),
-    ("a1" * 70, False),         # 128-ден ұзын
+    ("Aa1" * 6, False),         # 16-дан ұзын
+    ("Abcd 1234", False),       # бос орын
 ])
 def test_validate_password(pw, ok):
     assert (ql.validate_password(pw) == []) is ok
 
 
 def test_password_mismatch():
-    assert "err_password_mismatch" in ql.validate_password("abcdefg1", "abcdefg2")
+    assert "err_password_mismatch" in ql.validate_password("Abcdefg1", "Abcdefg2")
 
 
 def test_register_student_ok():
     reg, errors = ql.validate_registration("student", " Дана  Серікқызы ", "Parol2026",
-                                           "Parol2026", " 20230042 ", "эк-23-2")
+                                           "Parol2026", " 050720610008 ", "эк-23-2")
     assert errors == []
-    assert reg.role == "student" and reg.username == "20230042"
+    assert reg.role == "student" and reg.username == "050720610008"
     assert reg.full_name == "Дана Серікқызы" and reg.group_name == "ЭК-23-2"
 
 
 def test_register_student_requires_group_and_id():
     _, errors = ql.validate_registration("student", "Дана Серікқызы", "Parol2026",
                                          "Parol2026", "12", "")
-    assert {"err_student_id", "err_group"} <= set(errors)
+    assert {"err_iin", "err_group"} <= set(errors)
 
 
 def test_register_dekanat_ok_and_username_lowercased():

@@ -46,7 +46,7 @@ def test_schedule_validation_error(client):
 
 
 def test_student_cannot_change_schedule(client):
-    login(client, "student", "20210001", "Student2026")
+    login(client, "student", "030512501238", "Student2026")
     assert client.post("/admin/schedule", data={"open_at": "08:00"}).status_code == 302
 
 
@@ -73,7 +73,7 @@ def test_chat_api(client):
 
 
 def test_chat_api_russian_and_queue(client):
-    login(client, "student", "20210001", "Student2026")
+    login(client, "student", "030512501238", "Student2026")
     client.post("/student/ticket", data={"service_id": "1"})
     client.get("/lang/ru?next=/")
     data = client.post("/api/chat", json={"message": "Сколько человек в очереди?"}).get_json()
@@ -112,7 +112,7 @@ def test_new_ticket_visible_to_dean_immediately(app):
     student, dean = app.test_client(), app.test_client()
     login(dean, "admin", "admin", "Admin2026")
     assert dean.get("/api/staff/queue").get_json()["waiting"] == []
-    login(student, "student", "20210001", "Student2026")
+    login(student, "student", "030512501238", "Student2026")
     r = student.post("/student/ticket", data={"service_id": "1"})
     assert "/ticket/" in r.headers["Location"]
     data = dean.get("/api/staff/queue").get_json()
@@ -127,7 +127,7 @@ def test_manage_changes_signature(app):
     student, dean = app.test_client(), app.test_client()
     login(dean, "admin", "admin", "Admin2026")
     before = dean.get("/api/manage/changes").get_json()
-    login(student, "student", "20210001", "Student2026")
+    login(student, "student", "030512501238", "Student2026")
     student.post("/student/ticket", data={"service_id": "2"})
     after = dean.get("/api/manage/changes").get_json()
     assert after["signature"] != before["signature"] and after["tickets"] == before["tickets"] + 1
@@ -135,7 +135,7 @@ def test_manage_changes_signature(app):
 
 def test_student_tickets_signature_changes_when_called(app):
     student, staff = app.test_client(), app.test_client()
-    login(student, "student", "20210001", "Student2026")
+    login(student, "student", "030512501238", "Student2026")
     student.post("/student/ticket", data={"service_id": "1"})
     sig1 = student.get("/api/student/tickets").get_json()["signature"]
     login(staff, "dekanat", "dekanat1", "Dekanat2026")
@@ -148,7 +148,7 @@ def test_live_apis_require_roles(client):
     assert client.get("/api/staff/queue").status_code == 302
     assert client.get("/api/manage/changes").status_code == 302
     assert client.get("/api/student/tickets").status_code == 302
-    login(client, "student", "20210001", "Student2026")
+    login(client, "student", "030512501238", "Student2026")
     assert client.get("/api/staff/queue").status_code == 302
 
 

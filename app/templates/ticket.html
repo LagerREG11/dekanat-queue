@@ -5,7 +5,7 @@
 <section class="box ticket {{ 'is-called' if view.status == 'called' }}" id="ticket-card">
   <p class="muted">{{ t('ticket_title') }}</p>
   <div class="ticket-number">{{ ticket.number }}</div>
-  <p>{{ t('service') }}: <b>{{ service_name }}</b></p>
+  <p>{{ t('service') }}: <b>{{ service_name }}</b> <span class="muted small">({{ t('service_time').format(m=view.service_minutes) }})</span></p>
 
   <div class="called-box" id="called-box" {{ '' if view.status == 'called' else 'hidden' }}>
     {{ t('go_to_window') }} <span class="window-big" id="t-window">{{ view.window or '' }}</span>

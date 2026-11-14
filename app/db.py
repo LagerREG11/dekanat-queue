@@ -31,17 +31,42 @@ CREATE TABLE IF NOT EXISTS services (
 -- Барлық пайдаланушылар: студент, әдіскер, декан орынбасары, декан (әкімші)
 CREATE TABLE IF NOT EXISTS users (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    username      TEXT    NOT NULL UNIQUE,         -- студентте = студенттік ID
+    username      TEXT    NOT NULL UNIQUE,         -- студентте = ЖСН (ИИН)
     password_hash TEXT    NOT NULL,
     full_name     TEXT    NOT NULL,
     role          TEXT    NOT NULL CHECK (role IN ('student','dekanat','deputy','admin')),
-    student_id    TEXT    UNIQUE,                  -- тек студенттерде
+    student_id    TEXT    UNIQUE,                  -- студенттің ЖСН-і (ескі аккаунттарда — студенттік ID)
     group_name    TEXT    NOT NULL DEFAULT '',
     window_no     INTEGER CHECK (window_no IS NULL OR window_no > 0),
     is_active     INTEGER NOT NULL DEFAULT 1,      -- 0 = растауды күтуде / бұғатталған
     on_duty       INTEGER NOT NULL DEFAULT 0,      -- терезе ашық па
     on_break      INTEGER NOT NULL DEFAULT 0,      -- қызметкер үзілісте ме
-    created_at    TEXT    NOT NULL
+    created_at    TEXT    NOT NULL,
+    phone         TEXT    NOT NULL DEFAULT '',     -- профиль: +7 7xx xxx xx xx
+    gender        TEXT    NOT NULL DEFAULT '',     -- '', 'male', 'female'
+    email         TEXT    NOT NULL DEFAULT '',
+    avatar        TEXT    NOT NULL DEFAULT ''      -- instance/avatars ішіндегі файл атауы
+);
+
+-- Ерекше күндер: декан белгілеген демалыс/мереке немесе қысқартылған жұмыс күні
+CREATE TABLE IF NOT EXISTS day_overrides (
+    day        TEXT PRIMARY KEY,                   -- YYYY-MM-DD
+    kind       TEXT NOT NULL CHECK (kind IN ('holiday','short')),
+    open_at    TEXT,                               -- HH:MM, тек 'short'
+    close_at   TEXT,
+    note       TEXT NOT NULL DEFAULT '',
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL
+);
+
+-- Хабарландырулар (басты бетте, студент кабинетінде және таблода көрсетіледі)
+CREATE TABLE IF NOT EXISTS announcements (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    text       TEXT NOT NULL,
+    start_day  TEXT NOT NULL,                      -- YYYY-MM-DD
+    end_day    TEXT NOT NULL,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL
 );
 
 -- Жүйе баптаулары (кілт — мән), мысалы жұмыс кестесі JSON түрінде
@@ -117,9 +142,21 @@ def connect(path: str | Path) -> sqlite3.Connection:
     return conn
 
 
+PROFILE_COLUMNS = ("phone", "gender", "email", "avatar")
+
+
 def init_db(conn: sqlite3.Connection) -> None:
     _migrate_users(conn)
     conn.executescript(SCHEMA)
+    _add_profile_columns(conn)
+
+
+def _add_profile_columns(conn: sqlite3.Connection) -> None:
+    """Ескі дерекқорға профиль бағандарын (телефон, жыныс, e-mail, сурет) қосады."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
+    for col in PROFILE_COLUMNS:
+        if col not in cols:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
 
 
 def _migrate_users(conn: sqlite3.Connection) -> None:
@@ -176,6 +213,74 @@ def save_schedule(conn, actor_id: int, schedule: ql.Schedule, now: datetime) -> 
     log(conn, actor_id, "schedule", json.dumps(data, ensure_ascii=False), now)
 
 
+# ---------------------------------------------------------------------------
+# Ерекше күндер және хабарландырулар
+# ---------------------------------------------------------------------------
+def get_overrides(conn) -> dict:
+    """Барлық ерекше күндер: {date: DayOverride}."""
+    out = {}
+    for r in conn.execute("SELECT * FROM day_overrides"):
+        try:
+            if r["kind"] == ql.SHORT:
+                o = ql.build_override(r["day"], r["kind"], r["open_at"], r["close_at"], r["note"])
+            else:
+                o = ql.build_override(r["day"], r["kind"], note=r["note"])
+        except ql.QueueError:
+            continue  # бұзылған жазба есепке алынбайды
+        out[o.day] = o
+    return out
+
+
+def list_overrides(conn, from_day: str) -> list[sqlite3.Row]:
+    return conn.execute("SELECT * FROM day_overrides WHERE day >= ? ORDER BY day",
+                        (from_day,)).fetchall()
+
+
+def save_override(conn, actor_id: int, o: ql.DayOverride, now: datetime) -> None:
+    _require_manager(conn, actor_id)
+    fmt = lambda t: t.strftime("%H:%M") if t else None
+    conn.execute(
+        "INSERT INTO day_overrides (day, kind, open_at, close_at, note, created_by, created_at) "
+        "VALUES (?,?,?,?,?,?,?) ON CONFLICT(day) DO UPDATE SET kind=excluded.kind, "
+        "open_at=excluded.open_at, close_at=excluded.close_at, note=excluded.note, "
+        "created_by=excluded.created_by, created_at=excluded.created_at",
+        (o.day.isoformat(), o.kind, fmt(o.open_at), fmt(o.close_at), o.note, actor_id, ts(now)))
+    log(conn, actor_id, "day_override", f"{o.day} {o.kind} {fmt(o.open_at) or ''}-{fmt(o.close_at) or ''}", now)
+
+
+def delete_override(conn, actor_id: int, day: str, now: datetime) -> None:
+    _require_manager(conn, actor_id)
+    conn.execute("DELETE FROM day_overrides WHERE day=?", (day,))
+    log(conn, actor_id, "day_override_delete", day, now)
+
+
+def active_announcements(conn, now: datetime) -> list[sqlite3.Row]:
+    day = now.strftime("%Y-%m-%d")
+    return conn.execute("SELECT * FROM announcements WHERE start_day <= ? AND end_day >= ? "
+                        "ORDER BY id DESC", (day, day)).fetchall()
+
+
+def list_announcements(conn, now: datetime) -> list[sqlite3.Row]:
+    """Басқару панелі үшін: мерзімі өтпеген хабарландырулар."""
+    return conn.execute("SELECT * FROM announcements WHERE end_day >= ? ORDER BY start_day, id",
+                        (now.strftime("%Y-%m-%d"),)).fetchall()
+
+
+def add_announcement(conn, actor_id: int, a: ql.Announcement, now: datetime) -> int:
+    _require_manager(conn, actor_id)
+    aid = conn.execute("INSERT INTO announcements (text, start_day, end_day, created_by, created_at) "
+                       "VALUES (?,?,?,?,?)", (a.text, a.start.isoformat(), a.end.isoformat(),
+                                              actor_id, ts(now))).lastrowid
+    log(conn, actor_id, "announcement", a.text[:80], now)
+    return aid
+
+
+def delete_announcement(conn, actor_id: int, announcement_id: int, now: datetime) -> None:
+    _require_manager(conn, actor_id)
+    conn.execute("DELETE FROM announcements WHERE id=?", (announcement_id,))
+    log(conn, actor_id, "announcement_delete", str(announcement_id), now)
+
+
 def _require_manager(conn, actor_id: int) -> sqlite3.Row:
     actor = get_user(conn, actor_id)
     if actor is None or actor["role"] not in ql.MANAGER_ROLES or not actor["is_active"]:
@@ -183,25 +288,30 @@ def _require_manager(conn, actor_id: int) -> sqlite3.Row:
     return actor
 
 
+# Код (A, B ...) тек талон нөмірінде қолданылады (A-007); сайтта қызметтің атауы ғана көрінеді.
+# Соңғы сан — бір студентті қабылдаудың болжамды уақыты (минут).
 DEFAULT_SERVICES = [
-    ("A", "Анықтама алу", "Получение справки", 4),
-    ("B", "Өтініш тапсыру", "Подача заявления", 6),
+    ("A", "Анықтама алу", "Получение справки", 3),
+    ("B", "Өтініш тапсыру", "Подача заявления", 5),
     ("C", "Академиялық демалыс / ауысу", "Академ. отпуск / перевод", 12),
-    ("D", "Пәндерді қайта тапсыру (Retake)", "Пересдача (Retake)", 8),
+    ("D", "Пәндерді қайта тапсыру (Retake)", "Пересдача (Retake)", 10),
     ("E", "Транскрипт / құжаттар", "Транскрипт / документы", 7),
+    ("F", "Өтінішке қол қою", "Подпись заявления", 1),
 ]
+OLD_SERVICE_MINUTES = {"A": 4, "B": 6, "D": 8}  # бұрынғы әдепкі мәндер (жаңарту үшін)
+DEMO_STUDENT_IIN = "030512501238"  # ойдан алынған, бірақ бақылау цифры дұрыс ЖСН
 
 # Демо-аккаунттар (логин, құпиясөз, аты-жөні, рөл, қосымша)
 DEMO_USERS = [
     ("admin", "Admin2026", "А. Нұрланов", ql.ADMIN, {"window_no": 1}),
     ("zamdekan", "Deputy2026", "Р. Әбенова", ql.DEPUTY,
-     {"window_no": 4, "service_codes": ["A", "B", "C", "D", "E"]}),
+     {"window_no": 4, "service_codes": ["A", "B", "C", "D", "E", "F"]}),
     ("dekanat1", "Dekanat2026", "Әдіскер Ж. Сейітова", ql.DEKANAT,
-     {"window_no": 2, "service_codes": ["A", "B", "E"]}),
+     {"window_no": 2, "service_codes": ["A", "B", "E", "F"]}),
     ("dekanat2", "Dekanat2026", "Әдіскер Б. Омаров", ql.DEKANAT,
      {"window_no": 3, "service_codes": ["B", "C", "D"]}),
-    ("20210001", "Student2026", "Айгерім Сәрсенова", ql.STUDENT,
-     {"student_id": "20210001", "group_name": "ИС-21-1"}),
+    (DEMO_STUDENT_IIN, "Student2026", "Айгерім Сәрсенова", ql.STUDENT,
+     {"student_id": DEMO_STUDENT_IIN, "group_name": "ИС-21-1"}),
 ]
 
 
@@ -223,6 +333,27 @@ def seed(conn: sqlite3.Connection, now: datetime | None = None) -> None:
         username, password, name, role, extra = DEMO_USERS[1]
         if not conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
             create_user(conn, username, password, name, role, now=now, **extra)
+    _update_services_v2(conn)
+
+
+def _update_services_v2(conn: sqlite3.Connection) -> None:
+    """Бұрынғы дерекқорға «Өтінішке қол қою» (1 мин) қызметін қосып, әдепкі уақыттарды
+    жаңартады. Бір рет қана орындалады: декан кейін өзгертсе, қайта жазылмайды."""
+    if conn.execute("SELECT 1 FROM settings WHERE key='services_v2'").fetchone():
+        return
+    for code, minutes in OLD_SERVICE_MINUTES.items():
+        new = next(s[3] for s in DEFAULT_SERVICES if s[0] == code)
+        conn.execute("UPDATE services SET avg_minutes=? WHERE code=? AND avg_minutes=?",
+                     (new, code, minutes))
+    code, name_kk, name_ru, minutes = DEFAULT_SERVICES[-1]
+    if not conn.execute("SELECT 1 FROM services WHERE code=? OR name_kk=?", (code, name_kk)).fetchone():
+        sid = conn.execute("INSERT INTO services (code, name_kk, name_ru, avg_minutes) VALUES (?,?,?,?)",
+                           (code, name_kk, name_ru, minutes)).lastrowid
+        # «Өтініш тапсыру» қызметін көрсететін қызметкерлер қол қоюды да қабылдайды
+        conn.execute("INSERT OR IGNORE INTO user_services (user_id, service_id) "
+                     "SELECT us.user_id, ? FROM user_services us JOIN services s ON s.id=us.service_id "
+                     "WHERE s.code='B'", (sid,))
+    conn.execute("INSERT INTO settings (key, value) VALUES ('services_v2', '1')")
 
 
 def log(conn, user_id: int | None, action: str, details: str, now: datetime) -> None:
@@ -343,6 +474,34 @@ def change_password(conn, user_id: int, old: str, new: str, new2: str, now: date
     conn.execute("UPDATE users SET password_hash=? WHERE id=?",
                  (generate_password_hash(new), user_id))
     log(conn, user_id, "change_password", "", now)
+
+
+def force_set_password(conn, username: str, password: str, now: datetime) -> None:
+    """Консоль арқылы құпиясөзді қалпына келтіру (flask set-password). Аккаунт белсенді болады."""
+    user = conn.execute("SELECT * FROM users WHERE username=?",
+                        ((username or "").strip().lower(),)).fetchone()
+    if user is None:
+        raise ql.QueueError("err_not_found")
+    errors = ql.validate_password(password)
+    if errors:
+        raise ql.QueueError(errors[0])
+    conn.execute("UPDATE users SET password_hash=?, is_active=1 WHERE id=?",
+                 (generate_password_hash(password), user["id"]))
+    log(conn, user["id"], "reset_password_cli", user["username"], now)
+
+
+def update_profile(conn, user_id: int, data: dict, now: datetime) -> None:
+    """Профиль: телефон, жыныс, e-mail (ql.validate_profile тексерген деректер)."""
+    conn.execute("UPDATE users SET phone=?, gender=?, email=? WHERE id=?",
+                 (data["phone"], data["gender"], data["email"], user_id))
+    log(conn, user_id, "profile", "", now)
+
+
+def set_avatar(conn, user_id: int, filename: str) -> str:
+    """Жаңа сурет атауын жазып, ескісінің атауын қайтарады (оны файлдан өшіру үшін)."""
+    old = get_user(conn, user_id)["avatar"]
+    conn.execute("UPDATE users SET avatar=? WHERE id=?", (filename, user_id))
+    return old
 
 
 # ---------------- Әкімші / декан орынбасары: аккаунттарды басқару ----------------
@@ -486,7 +645,7 @@ def create_ticket(conn, user, service_id, now: datetime, priority: bool = False,
     """Студентке жаңа талон береді. Ережелер бұзылса QueueError шығарады."""
     if user is None or user["role"] != ql.STUDENT or not user["is_active"]:
         raise ql.QueueError("err_forbidden")
-    if check_hours and not ql.is_open(now, get_schedule(conn)):
+    if check_hours and not ql.can_take_ticket(now, get_schedule(conn), get_overrides(conn)):
         raise ql.QueueError("err_closed")
     try:
         service_id = int(service_id)
@@ -599,6 +758,7 @@ def services_overview(conn, now: datetime) -> list[dict]:
         n = waiting_count(conn, s["id"], day)
         result.append({"id": s["id"], "code": s["code"], "name_kk": s["name_kk"],
                        "name_ru": s["name_ru"], "waiting": n,
+                       "minutes": f"{float(s['avg_minutes']):g}",
                        "estimate": estimate_for_service(conn, s, n),
                        "windows": active_windows(conn, s["id"])})
     return result

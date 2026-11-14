@@ -6,7 +6,7 @@ import pytest
 from app import i18n
 from app.web import create_app
 
-ACCOUNTS = {"student": ("20210001", "Student2026"),
+ACCOUNTS = {"student": ("030512501238", "Student2026"),
             "dekanat": ("dekanat1", "Dekanat2026"),
             "admin": ("admin", "Admin2026")}
 
@@ -17,7 +17,7 @@ def login(client, role, username=None, password=None):
                                        "password": password or p})
 
 
-def register_student(client, sid="20230042", **extra):
+def register_student(client, sid="050720610008", **extra):
     data = {"kind": "student", "full_name": "Дана Серікқызы", "student_id": sid,
             "group_name": "ЭК-23-2", "password": "Parol2026", "password2": "Parol2026"}
     data.update(extra)
@@ -81,12 +81,13 @@ def test_login_tabs_on_page(client):
 
 def test_wrong_password(client):
     html = login(client, "student", password="bad").get_data(as_text=True)
-    assert "Логин немесе құпиясөз қате" in html
+    assert "Логин (ЖСН) немесе құпиясөз қате" in html
 
 
-def test_wrong_role_tab(client):
-    html = login(client, "student", *ACCOUNTS["admin"]).get_data(as_text=True)
-    assert "басқа кіру түріне тиесілі" in html
+def test_login_works_from_any_tab(client):
+    """Декан «Студент» не «Деканат» қойындысынан кірсе де, өз панеліне өтеді (бұрын қате шығатын)."""
+    r = login(client, "student", *ACCOUNTS["admin"])
+    assert r.status_code == 302 and r.headers["Location"].endswith("/admin")
 
 
 def test_login_rate_limit(tmp_path, clock):
@@ -133,14 +134,14 @@ def test_student_cannot_post_admin_actions(client, app):
 def test_register_student_and_login(client):
     r = register_student(client)
     assert r.status_code == 302 and "role=student" in r.headers["Location"]
-    r = client.post("/login", data={"role": "student", "username": "20230042",
+    r = client.post("/login", data={"role": "student", "username": "050720610008",
                                     "password": "Parol2026"})
     assert r.headers["Location"] == "/student"
 
 
 def test_register_errors_shown(client):
     html = register_student(client, sid="12", password2="other").get_data(as_text=True)
-    assert "6–12 цифр" in html and "сәйкес келмейді" in html
+    assert "ЖСН қате" in html and "сәйкес келмейді" in html
 
 
 def test_register_duplicate(client):
@@ -232,7 +233,7 @@ def test_student_cannot_cancel_foreign_ticket(client, app):
     take_ticket(client)
     client.post("/logout")
     register_student(client)
-    client.post("/login", data={"role": "student", "username": "20230042", "password": "Parol2026"})
+    client.post("/login", data={"role": "student", "username": "050720610008", "password": "Parol2026"})
     client.post("/student/ticket/1/cancel")
     status = app.extensions["db"].execute("SELECT status FROM tickets WHERE id=1").fetchone()[0]
     assert status == "waiting"
@@ -292,7 +293,7 @@ def test_admin_tabs_render(client, tab):
 
 def test_admin_blocks_student(client, app):
     login(client, "admin")
-    sid = app.extensions["db"].execute("SELECT id FROM users WHERE username='20210001'").fetchone()[0]
+    sid = app.extensions["db"].execute("SELECT id FROM users WHERE username='030512501238'").fetchone()[0]
     client.post(f"/admin/users/{sid}/block")
     client.post("/logout")
     assert "бұғатталған" in login(client, "student").get_data(as_text=True)
@@ -300,7 +301,7 @@ def test_admin_blocks_student(client, app):
 
 def test_blocked_user_session_is_dropped(client, app):
     login(client, "student")
-    app.extensions["db"].execute("UPDATE users SET is_active=0 WHERE username='20210001'")
+    app.extensions["db"].execute("UPDATE users SET is_active=0 WHERE username='030512501238'")
     assert client.get("/student").status_code == 302
 
 
@@ -332,17 +333,17 @@ def test_admin_fixes_ticket_and_audit(client, app):
 
 def test_admin_adds_service(client):
     login(client, "admin")
-    client.post("/admin/services/save", data={"code": "F", "name_kk": "Стипендия",
+    client.post("/admin/services/save", data={"code": "G", "name_kk": "Стипендия",
                                               "name_ru": "Стипендия", "avg_minutes": "5",
                                               "is_active": "1"})
-    assert "F — Стипендия" in client.get("/").get_data(as_text=True) or \
-        "Стипендия" in client.get("/").get_data(as_text=True)
+    html = client.get("/").get_data(as_text=True)
+    assert "Стипендия" in html and "G. Стипендия" not in html  # әріп-код көрсетілмейді
 
 
 # ---------------- Профиль ----------------
 def test_profile_change_password(client):
     login(client, "student")
-    assert "20210001" in client.get("/profile").get_data(as_text=True)
+    assert "030512501238" in client.get("/profile").get_data(as_text=True)
     html = client.post("/profile", data={"old_password": "Student2026", "password": "NewPass1",
                                          "password2": "NewPass1"},
                        follow_redirects=True).get_data(as_text=True)
@@ -408,7 +409,7 @@ def test_home_live_queue_counts(client):
     take_ticket(client)
     client.post("/logout")
     html = client.get("/").get_data(as_text=True)
-    assert re.search(r"<b>1</b> адам күтуде", html)
+    assert re.search(r"<b>1</b><span>адам күтуде", html)
 
 
 def test_home_external_links_are_safe(client):

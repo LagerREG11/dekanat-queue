@@ -2,32 +2,77 @@
 {% block title %}{{ t('nav_profile') }}{% endblock %}
 {% block content %}
 <h1 class="page-title">{{ t('nav_profile') }}</h1>
+<p class="page-sub">{{ t('role_' + user.role) }}</p>
+
+<section class="box profile-card">
+  <div class="avatar avatar-lg">
+    {% if user.avatar %}
+      <img src="{{ url_for('avatar', user_id=user.id) }}" alt="{{ user.full_name }}" width="112" height="112">
+    {% else %}
+      <span>{{ (user.full_name.split()|map('first')|join(''))[:2]|upper }}</span>
+    {% endif %}
+  </div>
+  <div class="profile-main">
+    <h2>{{ user.full_name }}</h2>
+    <ul class="profile-facts">
+      {% if user.role == 'student' %}
+        <li><span>{{ t('f_student_id') }}</span><b>{{ user.student_id }}</b></li>
+        <li><span>{{ t('group') }}</span><b>{{ user.group_name }}</b></li>
+      {% else %}
+        <li><span>{{ t('f_username') }}</span><b>{{ user.username }}</b></li>
+        <li><span>{{ t('window') }}</span><b>{{ user.window_no or '—' }}</b></li>
+        <li><span>{{ t('op_services') }}</span><b>{% for s in services %}{{ s['name_' + lang] }}{{ ', ' if not loop.last }}{% else %}—{% endfor %}</b></li>
+      {% endif %}
+      <li><span>{{ t('f_phone') }}</span><b>{{ user.phone or '—' }}</b></li>
+      <li><span>{{ t('f_email') }}</span><b>{{ user.email or '—' }}</b></li>
+      <li><span>{{ t('f_gender') }}</span><b>{{ t('gender_' + user.gender) if user.gender else '—' }}</b></li>
+      <li><span>{{ t('registered') }}</span><b>{{ user.created_at[:10] }}</b></li>
+    </ul>
+    <form method="post" action="{{ url_for('profile_avatar') }}" enctype="multipart/form-data" class="avatar-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label class="btn" for="avatar-file">{{ t('avatar_upload') }}</label>
+      <input id="avatar-file" name="avatar" type="file" accept="image/jpeg,image/png,image/webp" class="visually-hidden" data-autosubmit>
+      {% if user.avatar %}
+        <button class="btn btn-danger" type="submit" name="action" value="delete" formnovalidate>{{ t('avatar_delete') }}</button>
+      {% endif %}
+      <span class="hint">{{ t('avatar_hint') }}</span>
+    </form>
+  </div>
+</section>
+
 <div class="cols">
   <section class="box">
-    <h2 class="box-title">{{ user.full_name }}</h2>
-    <table class="table">
-      <tr><td>{{ t('role') }}</td><td>{{ t('role_' + user.role) }}</td></tr>
-      <tr><td>{{ t('f_username') }}</td><td>{{ user.username }}</td></tr>
-      <tr><td>{{ t('registered') }}</td><td>{{ user.created_at[:10] }}</td></tr>
-      {% if user.role == 'student' %}
-        <tr><td>ID</td><td>{{ user.student_id }}</td></tr>
-        <tr><td>{{ t('group') }}</td><td>{{ user.group_name }}</td></tr>
-      {% else %}
-        <tr><td>{{ t('window') }}</td><td>{{ user.window_no or '—' }}</td></tr>
-        <tr><td>{{ t('op_services') }}</td><td>{% for s in services %}{{ s.code }} {% else %}—{% endfor %}</td></tr>
-      {% endif %}
-    </table>
-    <div class="actions"><a class="btn btn-primary" href="{{ url_for(role_home[user.role]) }}">{{ t('go_cabinet') }}</a></div>
+    <h2 class="box-title">{{ t('profile_info') }}</h2>
+    <form method="post" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="info">
+      <label for="phone">{{ t('f_phone') }}</label>
+      <input id="phone" name="phone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel"
+             placeholder="{{ t('f_phone_ph') }}" value="{{ form.get('phone', user.phone) }}">
+      <label for="email">{{ t('f_email') }}</label>
+      <input id="email" name="email" type="email" maxlength="120" autocomplete="email"
+             placeholder="name@example.com" value="{{ form.get('email', user.email) }}">
+      <label for="gender">{{ t('f_gender') }}</label>
+      <select id="gender" name="gender">
+        {% for g in ('', 'male', 'female') %}
+          <option value="{{ g }}" {{ 'selected' if g == form.get('gender', user.gender) }}>{{ t('gender_' + (g or 'none')) }}</option>
+        {% endfor %}
+      </select>
+      <div class="buttons"><button class="btn btn-primary" type="submit">{{ t('save') }}</button></div>
+    </form>
   </section>
 
   <section class="box">
     <h2 class="box-title">{{ t('change_password') }}</h2>
     <form method="post" class="form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="password">
       <label for="old_password">{{ t('f_old_password') }}</label>
       <input id="old_password" name="old_password" type="password" required autocomplete="current-password">
       <label for="password">{{ t('f_new_password') }}</label>
-      <input id="password" name="password" type="password" required autocomplete="new-password">
+      <input id="password" name="password" type="password" required autocomplete="new-password"
+             minlength="8" maxlength="16" data-strength="pw-meter">
+      {% include "_pw_meter.html" %}
       <span class="hint">{{ t('password_rules') }}</span>
       <label for="password2">{{ t('f_password2') }}</label>
       <input id="password2" name="password2" type="password" required autocomplete="new-password">
@@ -35,4 +80,5 @@
     </form>
   </section>
 </div>
+<div class="actions"><a class="btn btn-primary" href="{{ url_for(role_home[user.role]) }}">{{ t('go_cabinet') }}</a></div>
 {% endblock %}

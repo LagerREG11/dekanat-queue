@@ -267,4 +267,46 @@
       send(input.value);
     });
   }
+
+  // ---------- Құпиясөз беріктігі (серверлік ережемен бірдей: service.password_strength) ----------
+  // weak — қызыл, medium — қызғылт сары (кіші + бас әріп + цифр),
+  // strong — жасыл (тыныс белгісі + әріп + цифр).
+  function strength(pw) {
+    if (pw.length < 8) return "weak";
+    const digit = /\d/.test(pw);
+    const lower = /\p{Ll}/u.test(pw);
+    const upper = /\p{Lu}/u.test(pw);
+    const symbol = /[^\p{L}\p{N}\s]/u.test(pw);
+    if (symbol && (lower || upper) && digit) return "strong";
+    if (lower && upper && digit) return "medium";
+    return "weak";
+  }
+  document.querySelectorAll("input[data-strength]").forEach(function (input) {
+    const meter = document.getElementById(input.dataset.strength);
+    if (!meter) return;
+    const label = meter.querySelector(".pw-label");
+    input.addEventListener("input", function () {
+      const v = input.value;
+      meter.hidden = v.length === 0;
+      const level = strength(v);
+      meter.className = "pw-meter pw-" + level;
+      label.textContent = meter.dataset[level];
+    });
+  });
+
+  // ---------- Профиль суреті: файлды таңдаған соң бірден жүктеу ----------
+  document.querySelectorAll("input[data-autosubmit]").forEach(function (input) {
+    input.addEventListener("change", function () {
+      if (input.files && input.files.length) input.form.submit();
+    });
+  });
+
+  // ---------- Ерекше күн формасы: «Демалыс» таңдалса, сағат өрістері керек емес ----------
+  const dayKind = document.querySelector("#day-form select[name=kind]");
+  if (dayKind) {
+    const hours = document.getElementById("day-hours");
+    const sync = function () { hours.hidden = dayKind.value !== "short"; };
+    dayKind.addEventListener("change", sync);
+    sync();
+  }
 })();

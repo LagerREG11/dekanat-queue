@@ -16,7 +16,7 @@
 </div>
 
 <div class="tabs">
-  {% for tb in ('users', 'schedule', 'services', 'tickets', 'audit') %}
+  {% for tb in ('users', 'schedule', 'calendar', 'services', 'tickets', 'audit') %}
     <a class="{{ 'active' if tb == tab }}" href="{{ url_for('admin_panel', tab=tb) }}">{{ t('tab_' + tb) }}{% if tb == 'users' and pending %}<span class="count">{{ pending }}</span>{% endif %}</a>
   {% endfor %}
 </div>
@@ -129,6 +129,76 @@
     <div class="buttons"><button class="btn btn-primary" type="submit">{{ t('save') }}</button></div>
   </form>
 </section>
+{% endif %}
+
+{# ---------- Хабарландырулар және ерекше күндер ---------- #}
+{% if tab == 'calendar' %}
+<div class="cols">
+  <section class="box">
+    <h2 class="box-title">{{ t('ann_title') }}</h2>
+    <p class="muted small">{{ t('ann_hint') }}</p>
+    <form method="post" action="{{ url_for('admin_announcement_new') }}" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="ann_text">{{ t('ann_text') }}</label>
+      <textarea id="ann_text" name="text" rows="4" maxlength="600" required placeholder="{{ t('ann_text_ph') }}"></textarea>
+      <div class="row">
+        <div><label for="ann_from">{{ t('ann_from') }}</label><input id="ann_from" name="start_day" type="date" value="{{ today }}" min="{{ today }}"></div>
+        <div><label for="ann_to">{{ t('ann_to') }}</label><input id="ann_to" name="end_day" type="date" value="{{ today }}" min="{{ today }}"></div>
+      </div>
+      <div class="buttons"><button class="btn btn-primary" type="submit">{{ t('ann_add') }}</button></div>
+    </form>
+    <ul class="notice-admin">
+      {% for a in announcements %}
+        <li>
+          <div><span class="tag">{{ a.start_day }} — {{ a.end_day }}</span><p>{{ a.text }}</p></div>
+          <form method="post" action="{{ url_for('admin_announcement_delete', announcement_id=a.id) }}" data-confirm="{{ t('delete_confirm') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-danger" type="submit">{{ t('delete') }}</button>
+          </form>
+        </li>
+      {% else %}
+        <li class="muted">{{ t('ann_none') }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="box">
+    <h2 class="box-title">{{ t('day_title') }}</h2>
+    <p class="muted small">{{ t('day_hint') }}</p>
+    <form method="post" action="{{ url_for('admin_day_save') }}" class="form" id="day-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row">
+        <div><label for="day">{{ t('f_date') }}</label><input id="day" name="day" type="date" value="{{ today }}" min="{{ today }}" required></div>
+        <div><label for="kind">{{ t('day_kind') }}</label>
+          <select id="kind" name="kind">
+            <option value="short">{{ t('day_kind_short') }}</option>
+            <option value="holiday">{{ t('day_kind_holiday') }}</option>
+          </select></div>
+      </div>
+      <div class="row" id="day-hours">
+        <div><label for="d_open">{{ t('f_from') }}</label><input id="d_open" name="open_at" type="time" value="{{ sched_form.open_at }}"></div>
+        <div><label for="d_close">{{ t('f_to') }}</label><input id="d_close" name="close_at" type="time" value="13:00"></div>
+      </div>
+      <label for="note">{{ t('f_note') }}</label>
+      <input id="note" name="note" type="text" maxlength="200" placeholder="{{ t('f_note_ph') }}">
+      <div class="buttons"><button class="btn btn-primary" type="submit">{{ t('day_add') }}</button></div>
+    </form>
+    <ul class="notice-admin">
+      {% for d in day_overrides %}
+        <li class="{{ 'is-short' if d.kind == 'short' else 'is-off' }}">
+          <div><b>{{ d.day }}</b> · {{ t('day_kind_' + d.kind) }}{% if d.kind == 'short' %} {{ d.open_at }}–{{ d.close_at }}{% endif %}
+            {% if d.note %}<p>{{ d.note }}</p>{% endif %}</div>
+          <form method="post" action="{{ url_for('admin_day_delete', day=d.day) }}" data-confirm="{{ t('delete_confirm') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-danger" type="submit">{{ t('delete') }}</button>
+          </form>
+        </li>
+      {% else %}
+        <li class="muted">{{ t('day_none') }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
 {% endif %}
 
 {# ---------- Қызметтер ---------- #}

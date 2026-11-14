@@ -3,21 +3,32 @@
 {% block body_attrs %}data-page="student" data-api="{{ url_for('api_student_tickets') }}"{% endblock %}
 {% block content %}
 <h1 class="page-title">{{ t('student_cabinet') }}</h1>
-<p class="page-sub">{{ user.full_name }}, {{ t('group') | lower }} {{ user.group_name }}, ID {{ user.student_id }}</p>
+<p class="page-sub">{{ user.full_name }}, {{ t('group') | lower }} {{ user.group_name }}, {{ t('f_student_id') }} {{ user.student_id }}</p>
 
 <div class="cols">
   <section class="box">
     <h2 class="box-title">{{ t('form_title') }}</h2>
-    {% if not is_open %}<div class="alert alert-warn">{{ t('closed_now') }}</div>{% endif %}
+    {% set sc = sched() %}
+    {% if not is_open %}<div class="alert alert-warn">{{ t('closed_now') }} {{ sc.booking }}</div>{% endif %}
+    <p class="muted small">{{ t('booking_window').format(start=sc.booking_from, end=(sc.today_hours or sc.hours).split('–')[1]) }}. {{ t('choose_service_hint') }}</p>
     <form method="post" action="{{ url_for('student_take_ticket') }}" class="form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label for="service_id">{{ t('f_service') }}</label>
-      <select id="service_id" name="service_id" required>
-        <option value="">{{ t('f_choose') }}</option>
+      <fieldset class="service-pick">
+        <legend class="visually-hidden">{{ t('f_service') }}</legend>
         {% for s in services %}
-          <option value="{{ s.id }}">{{ s.code }}. {{ s['name_' + lang] }} ({{ s.waiting }} {{ t('people') }}, ~{{ s.estimate }} {{ t('min') }})</option>
+          <label class="service-option">
+            <input type="radio" name="service_id" value="{{ s.id }}" required {{ 'checked' if loop.first and services|length == 1 }}>
+            <span class="so-body">
+              <span class="so-name">{{ s['name_' + lang] }}</span>
+              <span class="so-meta">
+                <span class="chip chip-accent">{{ t('service_time').format(m=s.minutes) }}</span>
+                <span class="chip">{{ t('service_queue').format(n=s.waiting) }}</span>
+                <span class="chip">{{ t('service_wait').format(m=s.estimate) }}</span>
+              </span>
+            </span>
+          </label>
         {% endfor %}
-      </select>
+      </fieldset>
       <label class="check"><input type="checkbox" name="priority" value="1"> {{ t('f_priority') }}</label>
       <div class="buttons">
         <button class="btn btn-primary" type="submit" {{ 'disabled' if not is_open }}>{{ t('f_submit') }}</button>

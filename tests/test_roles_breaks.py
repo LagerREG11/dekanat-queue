@@ -10,7 +10,7 @@ def uid(conn, username):
     return conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()[0]
 
 
-def student(conn, sid="20230001"):
+def student(conn, sid="040215410000"):
     reg, errors = ql.validate_registration("student", "Дана Серікқызы", "Parol2026", "Parol2026", sid, "ЭК-23-2")
     assert not errors
     return repo.get_user(conn, repo.register(conn, reg, MONDAY_10))
@@ -89,7 +89,7 @@ def test_deputy_does_dean_work(conn):
     repo.admin_set_role(conn, deputy, new_id, "deputy", MONDAY_10)
     t = repo.create_ticket(conn, student(conn), 1, MONDAY_10)
     repo.admin_set_ticket_status(conn, deputy, t["id"], ql.CANCELLED, MONDAY_10)
-    repo.admin_save_service(conn, deputy, None, "F", "Жаңа", "Новая", 5, True, MONDAY_10)
+    repo.admin_save_service(conn, deputy, None, "G", "Жаңа", "Новая", 5, True, MONDAY_10)
     assert repo.get_user(conn, new_id)["role"] == "deputy"
 
 
@@ -108,7 +108,7 @@ def test_deputy_cannot_touch_dean(conn):
 def test_staff_cannot_use_manager_functions(conn):
     staff = uid(conn, "dekanat1")
     t = repo.create_ticket(conn, student(conn), 1, MONDAY_10)
-    for fn in (lambda: repo.admin_set_active(conn, staff, uid(conn, "20210001"), False, MONDAY_10),
+    for fn in (lambda: repo.admin_set_active(conn, staff, uid(conn, "030512501238"), False, MONDAY_10),
                lambda: repo.admin_set_ticket_status(conn, staff, t["id"], ql.DONE, MONDAY_10),
                lambda: repo.admin_delete_ticket(conn, staff, t["id"], MONDAY_10)):
         with pytest.raises(ql.QueueError):

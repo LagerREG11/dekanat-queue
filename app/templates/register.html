@@ -23,7 +23,8 @@
 
     {% if kind == 'student' %}
       <label for="student_id">{{ t('f_student_id') }}</label>
-      <input id="student_id" name="student_id" required inputmode="numeric" maxlength="12"
+      <input id="student_id" name="student_id" required inputmode="numeric" maxlength="12" minlength="12"
+             pattern="[0-9]{12}" autocomplete="off"
              placeholder="{{ t('f_student_id_ph') }}" value="{{ form.get('student_id', '') }}">
       <span class="hint">{{ t('student_id_is_login') }}</span>
 
@@ -37,7 +38,9 @@
     {% endif %}
 
     <label for="password">{{ t('f_password') }}</label>
-    <input id="password" name="password" type="password" required autocomplete="new-password">
+    <input id="password" name="password" type="password" required autocomplete="new-password"
+           minlength="8" maxlength="16" data-strength="pw-meter">
+    {% include "_pw_meter.html" %}
     <span class="hint">{{ t('password_rules') }}</span>
 
     <label for="password2">{{ t('f_password2') }}</label>

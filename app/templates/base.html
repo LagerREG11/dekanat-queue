@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#15305a">
+  <meta name="theme-color" content="#1b3a6b">
   <meta name="format-detection" content="telephone=no">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}{{ t('app_title') }}{% endblock %} · {{ t('university') }}</title>
@@ -17,7 +17,8 @@
   <div class="container">
     <div class="contacts-top">
       <span>{{ t('dekanat_hours') }}: {{ sched().days }} {{ sched().hours }}</span>
-      <span>+7 7242 26-27-14</span>
+      <span>{{ t('phone') }}: <a href="tel:+77242262714">+7 7242 26-27-14</a></span>
+      <span>{{ t('admission_short') }}: <a href="tel:+77242710745">+7 7242 71-07-45</a></span>
     </div>
     <div class="langs">
       {% for code in languages %}
@@ -69,6 +70,16 @@
 </nav>
 
 {% if demo %}<div class="demo-note">{{ t('demo_mode') }}</div>{% endif %}
+{% set nts = notices() %}
+{% if nts %}
+<div class="notices">
+  <div class="container">
+    {% for n in nts %}
+      <div class="notice notice-{{ n.kind }}" role="status"><b>{{ t('notices_title') }}:</b> {{ n.text }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 <main class="container">
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -88,7 +99,8 @@
     </div>
     <div>
       <b>{{ t('contacts_title') }}</b>
-      <p>+7 7242 26-27-14</p>
+      <p>{{ t('phone') }}: +7 7242 26-27-14</p>
+      <p>{{ t('admission_short') }}: +7 7242 71-07-45</p>
       <p>ksu@korkyt.kz</p>
     </div>
     <div>

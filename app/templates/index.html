@@ -1,42 +1,67 @@
 {% extends "base.html" %}
+{% block body_class %}page-home{% endblock %}
 {% block content %}
 {% set s = sched() %}
 
-<div class="intro">
-  <section class="box">
+{# ---------- 1. Басты блок: не істейді, қазір ашық па, талон алу ---------- #}
+<section class="hero">
+  <div class="hero-text">
+    <span class="eyebrow">{{ t('hero_badge') }}</span>
     <h1>{{ t('home_title') }}</h1>
-    <p>{{ t('hero_lead') }}</p>
-    <ol class="steps">
-      {% for i in range(1, 5) %}
-        <li><b>{{ t('step%d_title' % i) }}.</b> {{ t('step%d_text' % i) }}</li>
-      {% endfor %}
-    </ol>
+    <p class="lead">{{ t('hero_lead') }}</p>
+
+    <div class="status-card state-{{ s.status }}">
+      <span class="dot" aria-hidden="true"></span>
+      <div>
+        <b>{{ t('status_' + s.status) }}</b>
+        {% if s.today_kind == 'short' %} · {{ t('cal_legend_short') }} {{ s.today_hours }}{% endif %}
+        <br><span class="small">{{ s.booking or t('booking_window').format(start=s.booking_from, end=(s.today_hours or s.hours).split('–')[1]) }}</span>
+      </div>
+    </div>
+
     <div class="actions">
       {% if user %}
         <a class="btn btn-primary btn-big" href="{{ url_for(role_home[user.role]) }}">{{ t('go_cabinet') }}</a>
       {% else %}
         <a class="btn btn-primary btn-big" href="{{ url_for('login', role='student') }}">{{ t('cta_take') }}</a>
-        <a class="btn btn-big" href="{{ url_for('register') }}">{{ t('nav_register') }}</a>
+        <a class="btn btn-ghost btn-big" href="{{ url_for('register') }}">{{ t('nav_register') }}</a>
       {% endif %}
     </div>
-  </section>
+  </div>
+  <figure class="hero-photo">
+    <img src="{{ url_for('static', filename='img/building5.webp') }}" alt="{{ t('hero_photo_alt') }}"
+         width="1448" height="1086" fetchpriority="high">
+    <figcaption>{{ t('b5_title') }} · {{ uni.building5.address }}</figcaption>
+  </figure>
+</section>
 
+{# ---------- 2. Кезек қазір + күнтізбе ---------- #}
+<div class="home-grid">
   <section class="box">
     <h2 class="box-title">{{ t('live_title') }}</h2>
-    <p class="queue-total"><b>{{ total_waiting }}</b> {{ t('total_waiting') }}, {{ t('windows_open') | lower }}: {{ open_windows }}</p>
-    <table class="table">
-      <tr><th>{{ t('service') }}</th><th>{{ t('in_queue') }}</th><th>{{ t('estimate') }}</th></tr>
+    <div class="kpis">
+      <div><b>{{ total_waiting }}</b><span>{{ t('total_waiting') }}</span></div>
+      <div><b>{{ open_windows }}</b><span>{{ t('windows_open') }}</span></div>
+    </div>
+    <ul class="service-list">
       {% for sv in services %}
-        <tr><td>{{ sv.code }}. {{ sv['name_' + lang] }}</td><td>{{ sv.waiting }}</td><td>{{ sv.estimate }} {{ t('min') }}</td></tr>
+        <li>
+          <span class="sl-name">{{ sv['name_' + lang] }}</span>
+          <span class="sl-meta">
+            <span class="chip chip-accent">{{ t('service_time').format(m=sv.minutes) }}</span>
+            <span class="chip">{{ t('service_queue').format(n=sv.waiting) }}</span>
+            <span class="chip">{{ t('service_wait').format(m=sv.estimate) }}</span>
+          </span>
+        </li>
       {% endfor %}
-    </table>
+    </ul>
 
     <h3>{{ t('work_hours') }}</h3>
     <ul class="hours-list">
       <li><span>{{ s.days }}</span><span>{{ s.hours }}</span></li>
+      <li><span>{{ t('booking_hours') }}</span><span>{{ s.booking_from }}–{{ s.hours.split('–')[1] }}</span></li>
       {% if s.lunch %}<li><span>{{ t('lunch_time') }}</span><span>{{ s.lunch }}</span></li>{% endif %}
       {% if s.breaks %}<li><span>{{ t('short_breaks') }}</span><span>{{ s.breaks | join(', ') }}</span></li>{% endif %}
-      <li><span>{{ t('now_status') }}</span><span class="state-{{ s.status }}">{{ t('status_' + s.status) }}</span></li>
     </ul>
 
     <div class="qr">
@@ -48,24 +73,84 @@
       </div>
     </div>
   </section>
+
+  <section class="box calendar-box" aria-labelledby="cal-title">
+    <h2 class="box-title" id="cal-title">{{ t('cal_title') }}</h2>
+    <p class="cal-month">{{ cal.month }} {{ cal.year }}</p>
+    <table class="calendar">
+      <thead><tr>{% for d in cal.days %}<th scope="col" class="{{ 'wkend' if loop.index0 >= 5 }}">{{ d }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for week in cal.weeks %}
+          <tr>
+            {% for c in week %}
+              {% if c %}
+                <td class="cal-{{ c.when }} kind-{{ c.kind }}" {% if c.label %}title="{{ c.label }}"{% endif %}>
+                  <span class="cal-day">{{ c.day }}</span>
+                  {% if c.when == 'today' %}<span class="cal-note">{{ t('cal_today') }}</span>{% endif %}
+                  {% if c.when != 'past' %}
+                    {% if c.kind in ('work', 'short') %}
+                      <span class="cal-hours">{{ c.hours.split('–')[0] }}<br>{{ c.hours.split('–')[1] }}</span>
+                    {% elif c.kind == 'weekend' %}
+                      <span class="cal-note">{{ t('cal_weekend') }}</span>
+                    {% else %}
+                      <span class="cal-note">{{ t('cal_holiday') }}</span>
+                    {% endif %}
+                  {% endif %}
+                </td>
+              {% else %}
+                <td class="cal-empty"></td>
+              {% endif %}
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <ul class="cal-legend">
+      <li><i class="lg-past"></i>{{ t('cal_legend_past') }}</li>
+      <li><i class="lg-today"></i>{{ t('cal_legend_today') }}</li>
+      <li><i class="lg-work"></i>{{ t('cal_legend_work') }}</li>
+      <li><i class="lg-short"></i>{{ t('cal_legend_short') }}</li>
+      <li><i class="lg-off"></i>{{ t('cal_legend_off') }}</li>
+    </ul>
+    {% set marked = [] %}
+    {% for week in cal.weeks %}{% for c in week %}{% if c and c.when != 'past' and c.label %}{% set _ = marked.append(c) %}{% endif %}{% endfor %}{% endfor %}
+    {% if marked %}
+      <ul class="cal-events">
+        {% for c in marked %}
+          <li class="kind-{{ c.kind }}"><b>{{ '%02d' % c.day }}.{{ '%02d' % c.date.month }}</b> {{ c.label }}{% if c.kind == 'short' %} ({{ c.hours }}){% endif %}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
 </div>
+
+{# ---------- 3. Қалай жұмыс істейді ---------- #}
+<section class="box">
+  <h2 class="box-title">{{ t('quick_title') }}</h2>
+  <ol class="step-cards">
+    {% for i in range(1, 5) %}
+      <li><span class="step-no">{{ i }}</span><b>{{ t('step%d_title' % i) }}</b><p>{{ t('step%d_text' % i) }}</p></li>
+    {% endfor %}
+  </ol>
+</section>
 
 <section class="box">
   <h2 class="box-title">{{ t('choose_role') }}</h2>
-  <ul class="role-list">
-    <li><b>{{ t('role_student') }}</b>{{ t('role_student_desc') }}
+  <ul class="role-cards">
+    <li><b>{{ t('role_student') }}</b><p>{{ t('role_student_desc') }}</p>
       <div class="links"><a href="{{ url_for('login', role='student') }}">{{ t('nav_login') }}</a> ·
         <a href="{{ url_for('register', kind='student') }}">{{ t('nav_register') }}</a></div></li>
-    <li><b>{{ t('role_dekanat') }}</b>{{ t('role_dekanat_desc') }}
+    <li><b>{{ t('role_dekanat') }}</b><p>{{ t('role_dekanat_desc') }}</p>
       <div class="links"><a href="{{ url_for('login', role='dekanat') }}">{{ t('nav_login') }}</a> ·
         <a href="{{ url_for('register', kind='dekanat') }}">{{ t('nav_register') }}</a></div></li>
-    <li><b>{{ t('role_deputy') }}</b>{{ t('role_deputy_desc') }}
+    <li><b>{{ t('role_deputy') }}</b><p>{{ t('role_deputy_desc') }}</p>
       <div class="links"><a href="{{ url_for('login', role='deputy') }}">{{ t('nav_login') }}</a></div></li>
-    <li><b>{{ t('role_admin') }}</b>{{ t('role_admin_desc') }}
+    <li><b>{{ t('role_admin') }}</b><p>{{ t('role_admin_desc') }}</p>
       <div class="links"><a href="{{ url_for('login', role='admin') }}">{{ t('nav_login') }}</a></div></li>
   </ul>
 </section>
 
+{# ---------- 4. Университет туралы ---------- #}
 <section class="box" id="about">
   <h2 class="box-title">{{ t('about_title') }}</h2>
   <p>{{ uni.about }}</p>
@@ -73,7 +158,7 @@
     {% for f in uni.facts %}<div><b>{{ f.value }}</b><span>{{ f.label }}</span></div>{% endfor %}
   </div>
   <h3>{{ t('institutes_title') }}</h3>
-  <ul>
+  <ul class="institutes">
     {% for name in uni.institutes %}<li>{{ name }}</li>{% endfor %}
   </ul>
 </section>
@@ -89,7 +174,8 @@
   <h2 class="box-title">{{ t('b5_title') }}</h2>
   <div class="b5">
     <div>
-      <img src="{{ url_for('static', filename='building5.svg') }}" alt="{{ t('b5_title') }}" width="520" height="320">
+      <img src="{{ url_for('static', filename='img/building5.webp') }}" alt="{{ t('b5_title') }}"
+           width="1448" height="1086" loading="lazy">
       <p class="small muted">{{ uni.building5.address }} · <a href="{{ uni.building5.map_url }}" target="_blank" rel="noopener noreferrer">{{ t('b5_map') }}</a></p>
     </div>
     <div>
@@ -128,9 +214,9 @@
   <h2 class="box-title">{{ t('contacts_title') }}</h2>
   <table class="table contacts-table">
     <tr><td>{{ t('main_building') }}</td><td>{{ uni.contacts.main_building }}</td></tr>
-    <tr><td>{{ t('phone') }}</td><td>{{ uni.contacts.phone }}</td></tr>
-    <tr><td>{{ t('admission') }}</td><td>{{ uni.contacts.admission_phone }}</td></tr>
-    <tr><td>E-mail</td><td>{{ uni.contacts.email }}</td></tr>
+    <tr><td>{{ t('phone') }}</td><td><a href="tel:+77242262714">{{ uni.contacts.phone }}</a></td></tr>
+    <tr><td>{{ t('admission') }}</td><td><a href="tel:+77242710745">{{ uni.contacts.admission_phone }}</a></td></tr>
+    <tr><td>E-mail</td><td><a href="mailto:{{ uni.contacts.email }}">{{ uni.contacts.email }}</a></td></tr>
     <tr><td>{{ t('official_site') }}</td><td><a href="{{ uni.site }}" target="_blank" rel="noopener noreferrer">korkyt.edu.kz</a></td></tr>
     <tr><td>{{ t('dekanat_hours') }}</td><td>{{ s.days }}, {{ s.hours }}{% if s.lunch %}; {{ t('lunch_time') | lower }} {{ s.lunch }}{% endif %}</td></tr>
   </table>

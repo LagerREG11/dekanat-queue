@@ -2,7 +2,7 @@
 from datetime import timedelta
 
 import pytest
-from conftest import MONDAY_10
+from conftest import MONDAY_10, make_iin
 
 from app import db as repo
 from app import service as ql
@@ -12,7 +12,7 @@ def uid(conn, username):
     return conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()[0]
 
 
-def student(conn, sid="20230001", name="Дана Серікқызы", group="ЭК-23-2"):
+def student(conn, sid="040215410000", name="Дана Серікқызы", group="ЭК-23-2"):
     """Жаңа студент тіркейді және оның жолын қайтарады."""
     reg, errors = ql.validate_registration("student", name, "Parol2026", "Parol2026", sid, group)
     assert not errors
@@ -29,7 +29,7 @@ def test_seed_is_idempotent_and_has_all_roles(conn):
     repo.seed(conn, MONDAY_10)
     roles = {r[0] for r in conn.execute("SELECT role FROM users")}
     assert roles == {"student", "dekanat", "deputy", "admin"}
-    assert conn.execute("SELECT COUNT(*) FROM services").fetchone()[0] == 5
+    assert conn.execute("SELECT COUNT(*) FROM services").fetchone()[0] == 6  # A–F
 
 
 def test_role_check_constraint(conn):
@@ -45,7 +45,7 @@ def test_passwords_are_hashed(conn):
 
 
 def test_authenticate_each_role(conn):
-    for username, pw, role in [("20210001", "Student2026", "student"),
+    for username, pw, role in [("030512501238", "Student2026", "student"),
                                ("dekanat1", "Dekanat2026", "dekanat"),
                                ("admin", "Admin2026", "admin")]:
         user, err = repo.authenticate(conn, username, pw, role)
@@ -64,8 +64,8 @@ def test_authenticate_errors(conn):
 
 def test_student_registration_active_immediately(conn):
     s = student(conn)
-    assert s["role"] == "student" and s["is_active"] == 1 and s["username"] == "20230001"
-    assert repo.authenticate(conn, "20230001", "Parol2026", "student")[1] is None
+    assert s["role"] == "student" and s["is_active"] == 1 and s["username"] == "040215410000"
+    assert repo.authenticate(conn, "040215410000", "Parol2026", "student")[1] is None
 
 
 def test_staff_registration_needs_approval(conn):
@@ -170,9 +170,9 @@ def test_admin_delete_user_keeps_tickets(conn):
 # ---------------- Әкімші: қызметтер ----------------
 def test_admin_create_and_update_service(conn):
     admin = uid(conn, "admin")
-    sid = repo.admin_save_service(conn, admin, None, "f", "Стипендия", "Стипендия", "5", True, MONDAY_10)
-    assert repo.get_service(conn, sid)["code"] == "F"
-    repo.admin_save_service(conn, admin, sid, "F", "Стипендия", "Стипендия", "9", False, MONDAY_10)
+    sid = repo.admin_save_service(conn, admin, None, "g", "Стипендия", "Стипендия", "5", True, MONDAY_10)
+    assert repo.get_service(conn, sid)["code"] == "G"
+    repo.admin_save_service(conn, admin, sid, "G", "Стипендия", "Стипендия", "9", False, MONDAY_10)
     assert repo.get_service(conn, sid)["is_active"] == 0
     assert sid not in {s["id"] for s in repo.list_services(conn)}
 
@@ -194,12 +194,12 @@ def test_admin_service_validation(conn, code, kk, ru, avg, err):
 
 # ---------------- Талондар ----------------
 def test_ticket_numbers_increment_per_service(conn):
-    a, b = student(conn, "111111"), student(conn, "222222")
+    a, b = student(conn, "031102510002"), student(conn, "010923610006")
     a1 = repo.create_ticket(conn, a, 1, MONDAY_10)
     a2 = repo.create_ticket(conn, b, 1, MONDAY_10)
     b1 = repo.create_ticket(conn, a, 2, MONDAY_10)
     assert (a1["number"], a2["number"], b1["number"]) == ("A-001", "A-002", "B-001")
-    assert a1["full_name"] == "Дана Серікқызы" and a1["student_id"] == "111111"
+    assert a1["full_name"] == "Дана Серікқызы" and a1["student_id"] == "031102510002"
     assert a1["token"] != a2["token"] and len(a1["token"]) >= 16
 
 
@@ -255,22 +255,22 @@ def test_inactive_service(conn):
 
 
 def test_people_ahead_and_estimate(conn):
-    tickets = [repo.create_ticket(conn, student(conn, str(100000 + i)), 1,
+    tickets = [repo.create_ticket(conn, student(conn, make_iin(i)), 1,
                                   MONDAY_10 + timedelta(seconds=i)) for i in range(4)]
     assert [repo.people_ahead(conn, t) for t in tickets] == [0, 1, 2, 3]
-    assert repo.estimate_for_service(conn, repo.get_service(conn, 1), 3) == 12
+    assert repo.estimate_for_service(conn, repo.get_service(conn, 1), 3) == 9  # A: 3 мин
 
 
 def test_priority_ticket_goes_first(conn):
-    normal = repo.create_ticket(conn, student(conn, "111111"), 1, MONDAY_10)
-    prio = repo.create_ticket(conn, student(conn, "222222"), 1, MONDAY_10 + timedelta(minutes=1),
+    normal = repo.create_ticket(conn, student(conn, "031102510002"), 1, MONDAY_10)
+    prio = repo.create_ticket(conn, student(conn, "010923610006"), 1, MONDAY_10 + timedelta(minutes=1),
                               priority=True)
     assert repo.people_ahead(conn, prio) == 0
     assert repo.people_ahead(conn, repo.get_ticket(conn, normal["id"])) == 1
 
 
 def test_cancel_ticket_only_by_owner(conn):
-    s, other = student(conn, "111111"), student(conn, "222222")
+    s, other = student(conn, "031102510002"), student(conn, "010923610006")
     t = repo.create_ticket(conn, s, 1, MONDAY_10)
     with pytest.raises(ql.QueueError) as e:
         repo.cancel_ticket(conn, t["id"], other["id"], MONDAY_10)
@@ -328,8 +328,8 @@ def test_call_next_respects_operator_services(conn):
 
 def test_cannot_call_twice_without_finishing(conn):
     op = uid(conn, "dekanat1")
-    repo.create_ticket(conn, student(conn, "111111"), 1, MONDAY_10)
-    repo.create_ticket(conn, student(conn, "222222"), 1, MONDAY_10)
+    repo.create_ticket(conn, student(conn, "031102510002"), 1, MONDAY_10)
+    repo.create_ticket(conn, student(conn, "010923610006"), 1, MONDAY_10)
     repo.call_next(conn, op, MONDAY_10)
     with pytest.raises(ql.QueueError) as e:
         repo.call_next(conn, op, MONDAY_10)
@@ -337,8 +337,8 @@ def test_cannot_call_twice_without_finishing(conn):
 
 
 def test_two_operators_get_different_tickets(conn):
-    repo.create_ticket(conn, student(conn, "111111"), 1, MONDAY_10)
-    repo.create_ticket(conn, student(conn, "222222"), 1, MONDAY_10)
+    repo.create_ticket(conn, student(conn, "031102510002"), 1, MONDAY_10)
+    repo.create_ticket(conn, student(conn, "010923610006"), 1, MONDAY_10)
     t1 = repo.call_next(conn, uid(conn, "admin"), MONDAY_10)
     t2 = repo.call_next(conn, uid(conn, "dekanat1"), MONDAY_10)
     assert t1["id"] != t2["id"]
@@ -376,12 +376,12 @@ def test_recall_only_for_own_called_ticket(conn):
 
 def test_estimate_uses_active_windows(conn):
     for i in range(4):
-        repo.create_ticket(conn, student(conn, str(300000 + i)), 2, MONDAY_10)
-    service = repo.get_service(conn, 2)  # B: 6 мин, dekanat1 + dekanat2 + admin
-    assert repo.estimate_for_service(conn, service, 4) == 24
+        repo.create_ticket(conn, student(conn, make_iin(100 + i)), 2, MONDAY_10)
+    service = repo.get_service(conn, 2)  # B: 5 мин, dekanat1 + dekanat2 + admin
+    assert repo.estimate_for_service(conn, service, 4) == 20
     repo.set_on_duty(conn, uid(conn, "dekanat1"), True)
     repo.set_on_duty(conn, uid(conn, "dekanat2"), True)
-    assert repo.estimate_for_service(conn, service, 4) == 12
+    assert repo.estimate_for_service(conn, service, 4) == 10
 
 
 # ---------------- Әкімші: талондарды түзету ----------------
@@ -419,8 +419,8 @@ def test_admin_delete_ticket(conn):
 # ---------------- Табло және қауіпсіздік ----------------
 def test_board_data(conn):
     op = uid(conn, "dekanat1")
-    repo.create_ticket(conn, student(conn, "111111"), 1, MONDAY_10)
-    repo.create_ticket(conn, student(conn, "222222"), 1, MONDAY_10)
+    repo.create_ticket(conn, student(conn, "031102510002"), 1, MONDAY_10)
+    repo.create_ticket(conn, student(conn, "010923610006"), 1, MONDAY_10)
     repo.call_next(conn, op, MONDAY_10)
     data = repo.board_data(conn, MONDAY_10)
     assert data["called"][0]["number"] == "A-001" and data["called"][0]["window_no"] == 2

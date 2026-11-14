@@ -16,6 +16,7 @@
     <label for="username">{{ t('f_student_id') if role == 'student' else t('f_username') }}</label>
     <input id="username" name="username" required autocomplete="username" maxlength="40"
            {% if role == 'student' %}inputmode="numeric" placeholder="{{ t('f_student_id_ph') }}"{% endif %}>
+    {% if role == 'student' %}<span class="hint">{{ t('student_id_is_login') }}</span>{% endif %}
     <label for="password">{{ t('f_password') }}</label>
     <input id="password" name="password" type="password" required autocomplete="current-password">
     <div class="buttons">
@@ -32,7 +33,7 @@
     <summary>{{ t('demo_accounts') }}</summary>
     <table class="table gap-top">
       <tr><th>{{ t('role') }}</th><th>{{ t('f_username') }}</th><th>{{ t('f_password') }}</th></tr>
-      <tr><td>{{ t('role_student') }}</td><td>20210001</td><td>Student2026</td></tr>
+      <tr><td>{{ t('role_student') }}</td><td>030512501238</td><td>Student2026</td></tr>
       <tr><td>{{ t('role_dekanat') }}</td><td>dekanat1</td><td>Dekanat2026</td></tr>
       <tr><td>{{ t('role_deputy') }}</td><td>zamdekan</td><td>Deputy2026</td></tr>
       <tr><td>{{ t('role_admin') }}</td><td>admin</td><td>Admin2026</td></tr>

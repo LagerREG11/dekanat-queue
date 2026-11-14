@@ -9,6 +9,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app import db as repo
 from app.web import create_app
 
+
+def make_iin(n: int) -> str:
+    """Тесттер үшін n-ші жарамды ЖСН (бақылау цифры дұрыс)."""
+    from app.service import iin_control_digit
+    found = -1
+    for serial in range(10000):
+        first11 = f"0001015{serial:04d}"
+        control = iin_control_digit(first11)
+        if control is not None:
+            found += 1
+            if found == n:
+                return first11 + str(control)
+    raise ValueError(n)
+
+
 # Дүйсенбі, 10:00 — деканат ашық уақыт
 MONDAY_10 = datetime(2026, 11, 16, 10, 0, 0)
 

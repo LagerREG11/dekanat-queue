@@ -16,12 +16,26 @@ import socket
 import sys
 import time
 from collections import defaultdict, deque
-from datetime import datetime
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from datetime import date, datetime, timedelta
 from functools import wraps
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from flask import Flask, abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
+import click
+from flask import (
+    Flask,
+    abort,
+    current_app,
+    flash,
+    g,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    session,
+    url_for,
+)
 
 from . import chatbot, university_info
 from . import db as repo
@@ -32,6 +46,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent  # жобаның түбірі
 ROLE_HOME = {ql.STUDENT: "student_cabinet", ql.DEKANAT: "dekanat_panel",
              ql.DEPUTY: "admin_panel", ql.ADMIN: "admin_panel"}
 CHAT_LIMIT = 30  # бір IP-ден минутына неше чат хабарламасы
+AVATAR_MAX_BYTES = 2 * 1024 * 1024  # профиль суреті 2 МБ-тан аспайды
 
 
 # ---------------------------------------------------------------------------
@@ -45,12 +60,13 @@ def create_app(config: dict | None = None) -> Flask:
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE") == "1",
-        CHECK_HOURS=os.environ.get("QUEUE_DEMO", "1") != "1",  # демо: уақыт тексерілмейді
+        CHECK_HOURS=os.environ.get("QUEUE_DEMO", "0") != "1",  # QUEUE_DEMO=1 — уақыт тексерілмейді
         RATE_LIMIT=5,            # бір IP-ден минутына неше талон / тіркелу
         LOGIN_LIMIT=10,          # бір IP-ден минутына неше кіру әрекеті
         NOW=_local_clock(os.environ.get("APP_TIMEZONE", DEFAULT_TIMEZONE)),  # тесттерде ауыстырылады
         PUBLIC_URL=os.environ.get("PUBLIC_URL", ""),  # QR-кодтағы мекенжай (телефондар үшін)
         SHOW_DEMO_ACCOUNTS=os.environ.get("SHOW_DEMO_ACCOUNTS", "1") != "0",  # хостингте 0
+        MAX_CONTENT_LENGTH=3 * 1024 * 1024,  # сұрау көлемі (сурет жүктеу үшін) 3 МБ-тан аспайды
         TESTING=False,
     )
     if config:
@@ -81,6 +97,7 @@ def create_app(config: dict | None = None) -> Flask:
     _register_student_routes(app)
     _register_dekanat_routes(app)
     _register_admin_routes(app)
+    _register_cli(app)
     return app
 
 
@@ -238,9 +255,31 @@ def schedule() -> ql.Schedule:
     return g.schedule
 
 
+def overrides() -> dict:
+    """Декан белгілеген ерекше күндер (қысқартылған күн, қосымша демалыс)."""
+    if "overrides" not in g:
+        g.overrides = repo.get_overrides(db())
+    return g.overrides
+
+
 def open_now() -> bool:
-    """Талон беруге бола ма? Демо-режимде уақыт тексерілмейді."""
-    return ql.is_open(now(), schedule()) or not current_app.config["CHECK_HOURS"]
+    """Талон беруге бола ма? (08:45–18:00, үзілістерден тыс). Демо-режимде уақыт тексерілмейді."""
+    return ql.can_take_ticket(now(), schedule(), overrides()) or not current_app.config["CHECK_HOURS"]
+
+
+def booking_text() -> str:
+    """Талон қашан беріле бастайтынын адамға түсінікті мәтінмен береді (қазір берілсе — бос)."""
+    n = now()
+    start = ql.next_booking_time(n, schedule(), overrides())
+    if start is None or start == n:
+        return ""
+    hhmm = start.strftime("%H:%M")
+    if start.date() == n.date():
+        return t("booking_today").format(time=hhmm)
+    if start.date() == n.date() + timedelta(days=1):
+        return t("booking_tomorrow").format(time=hhmm)
+    days = t("days_short").split(",")
+    return t("booking_on").format(date=start.strftime("%d.%m"), day=days[start.weekday()], time=hhmm)
 
 
 def schedule_info() -> dict:
@@ -253,14 +292,56 @@ def schedule_info() -> dict:
         days_text = f"{days[workdays[0]]}–{days[workdays[-1]]}"
     else:
         days_text = ", ".join(days[d] for d in workdays)
-    pause = ql.current_pause(now(), s)
-    if pause and now().weekday() in s.workdays:
-        status = pause
+    n = now()
+    plan = ql.day_plan(n.date(), s, overrides())
+    today = plan.schedule
+    if today is None:
+        status = "closed"
     else:
-        status = "open" if ql.is_open(now(), s) else "closed"
+        pause = ql.current_pause(n, today)
+        in_hours = today.open_at <= n.time() < today.close_at
+        status = pause if pause and in_hours else ("open" if ql.is_open(n, today) else "closed")
     return {"days": days_text, "hours": f"{hhmm(s.open_at)}–{hhmm(s.close_at)}",
             "lunch": f"{hhmm(s.lunch_from)}–{hhmm(s.lunch_to)}" if s.lunch_from else "",
-            "breaks": [f"{hhmm(a)}–{hhmm(b)}" for a, b in s.breaks], "status": status}
+            "breaks": [f"{hhmm(a)}–{hhmm(b)}" for a, b in s.breaks], "status": status,
+            "today_kind": plan.kind, "today_note": plan.note,
+            "today_hours": f"{hhmm(today.open_at)}–{hhmm(today.close_at)}" if today else "",
+            "booking_from": (datetime.combine(n.date(), s.open_at)
+                             - timedelta(minutes=ql.BOOKING_LEAD_MINUTES)).strftime("%H:%M"),
+            "booking": booking_text()}
+
+
+def notices() -> list[dict]:
+    """Барлық беттің жоғарғы жағындағы хабарландырулар: деканның хабарламалары және
+    бүгін қысқартылған күн / қосымша демалыс болса — сол туралы ескерту."""
+    items = []
+    info = schedule_info()
+    if info["today_kind"] == ql.SHORT:
+        text = t("notice_short_day").format(hours=info["today_hours"])
+        items.append({"kind": "urgent", "text": f"{text} {info['today_note']}".strip()})
+    elif info["today_kind"] == ql.HOLIDAY and info["today_note"]:
+        items.append({"kind": "urgent", "text": info["today_note"]})
+    for a in repo.active_announcements(db(), now()):
+        items.append({"kind": "info", "text": a["text"]})
+    return items
+
+
+def calendar_view() -> dict:
+    """Ағымдағы айдың күнтізбесі (басты бет үшін)."""
+    n = now()
+    weeks = ql.month_calendar(n.year, n.month, n.date(), schedule(), overrides())
+    idx = 0 if lang() == "kk" else 1
+    for week in weeks:
+        for cell in week:
+            if cell is None:
+                continue
+            plan = cell["plan"]
+            cell["kind"] = plan.kind
+            cell["hours"] = (f"{plan.schedule.open_at.strftime('%H:%M')}–"
+                             f"{plan.schedule.close_at.strftime('%H:%M')}") if plan.schedule else ""
+            cell["label"] = (plan.holiday[idx] if plan.holiday else "") or plan.note
+    return {"weeks": weeks, "month": t("months").split(",")[n.month - 1], "year": n.year,
+            "days": t("days_short").split(",")}
 
 
 def _register_helpers(app: Flask) -> None:
@@ -272,6 +353,7 @@ def _register_helpers(app: Flask) -> None:
                 "demo": not app.config["CHECK_HOURS"], "user": user,
                 "show_demo_accounts": app.config["SHOW_DEMO_ACCOUNTS"],
                 "role_home": ROLE_HOME, "roles": ql.ROLES, "sched": schedule_info,
+                "notices": notices,
                 "manager_roles": ql.MANAGER_ROLES, "staff_roles": ql.STAFF_ROLES}
 
     @app.before_request
@@ -297,6 +379,11 @@ def _register_helpers(app: Flask) -> None:
     def not_found(_e):
         return render_template("error.html", message=t("err_404")), 404
 
+    @app.errorhandler(413)
+    def too_large(_e):
+        flash("err_avatar_size", "error")
+        return redirect(url_for("profile"))
+
 
 def _ticket_view(ticket) -> dict:
     """Талон туралы JSON/шаблон үшін деректер (жеке деректерсіз)."""
@@ -310,6 +397,7 @@ def _ticket_view(ticket) -> dict:
         "status_text": t("st_" + ticket["status"]),
         "ahead": ahead,
         "estimate": est,
+        "service_minutes": ql_minutes(service["avg_minutes"]),
         "window": ticket["window_no"],
         "recall": ticket["recall_count"],
         "late": (ticket["status"] == ql.WAITING and current_app.config["CHECK_HOURS"]
@@ -335,7 +423,7 @@ def _register_public_routes(app: Flask) -> None:
             "index.html", services=services, uni=university_info.localized(lang()),
             total_waiting=sum(s["waiting"] for s in services),
             open_windows=max((s["windows"] for s in services), default=0),
-            is_open=open_now())
+            is_open=open_now(), cal=calendar_view())
 
     @app.get("/ticket/<token>")
     def ticket_page(token):
@@ -427,8 +515,10 @@ def _register_auth_routes(app: Flask) -> None:
             if rate_limited("login", app.config["LOGIN_LIMIT"]):
                 flash("err_rate", "error")
                 return render_template("login.html", role=role), 429
+            # Қойынды тек өріс атауын өзгертеді: аккаунт кез келген қойындыдан кіре алады,
+            # сондықтан декан «Деканат» қойындысында тұрып кірсе де қате шықпайды.
             user, err = repo.authenticate(db(), request.form.get("username"),
-                                          request.form.get("password"), role)
+                                          request.form.get("password"))
             if err:
                 if not app.config["TESTING"]:
                     time.sleep(0.3)  # құпиясөзді теріп табуды баяулату
@@ -463,17 +553,79 @@ def _register_auth_routes(app: Flask) -> None:
     def profile():
         user = current_user()
         if request.method == "POST":
+            f = request.form
             try:
-                repo.change_password(db(), user["id"], request.form.get("old_password"),
-                                     request.form.get("password"),
-                                     request.form.get("password2"), now())
-                flash("msg_password_changed", "ok")
+                if f.get("action") == "info":
+                    repo.update_profile(db(), user["id"],
+                                        ql.validate_profile(f.get("phone"), f.get("gender"), f.get("email")),
+                                        now())
+                    flash("msg_profile_saved", "ok")
+                else:
+                    repo.change_password(db(), user["id"], f.get("old_password"),
+                                         f.get("password"), f.get("password2"), now())
+                    flash("msg_password_changed", "ok")
                 return redirect(url_for("profile"))
             except ql.QueueError as e:
                 flash_error(e)
         sids = repo.user_service_ids(db(), user["id"])
         services = [s for s in repo.list_services(db(), False) if s["id"] in sids]
-        return render_template("profile.html", services=services)
+        return render_template("profile.html", services=services, form=request.form)
+
+    @app.post("/profile/avatar")
+    @role_required(*ql.ROLES)
+    def profile_avatar():
+        """Профиль суретін жүктеу (JPG, PNG, WEBP; 2 МБ дейін) немесе өшіру."""
+        user = current_user()
+        folder = avatar_dir()
+        if request.form.get("action") == "delete":
+            old = repo.set_avatar(db(), user["id"], "")
+            _remove_avatar(folder, old)
+            flash("msg_avatar_deleted", "ok")
+            return redirect(url_for("profile"))
+        file = request.files.get("avatar")
+        data = file.read(AVATAR_MAX_BYTES + 1) if file else b""
+        try:
+            if not data:
+                raise ql.QueueError("err_avatar_type")
+            if len(data) > AVATAR_MAX_BYTES:
+                raise ql.QueueError("err_avatar_size")
+            ext = ql.detect_image_type(data)  # файл атауына емес, мазмұнына қараймыз
+            name = f"u{user['id']}_{secrets.token_hex(8)}.{ext}"
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / name).write_bytes(data)
+            _remove_avatar(folder, repo.set_avatar(db(), user["id"], name))
+            flash("msg_avatar_saved", "ok")
+        except ql.QueueError as e:
+            flash_error(e)
+        return redirect(url_for("profile"))
+
+    @app.get("/avatar/<int:user_id>")
+    def avatar(user_id):
+        """Профиль суреті: иесіне және деканат қызметкерлеріне ғана көрінеді."""
+        viewer = current_user()
+        if viewer is None or (viewer["id"] != user_id and viewer["role"] not in ql.STAFF_ROLES):
+            abort(404)
+        target = repo.get_user(db(), user_id)
+        if target is None or not target["avatar"]:
+            abort(404)
+        resp = send_from_directory(avatar_dir(), target["avatar"], max_age=0)
+        resp.headers["Cache-Control"] = "private, no-cache"
+        return resp
+
+
+def avatar_dir() -> Path:
+    """Профиль суреттері дерекқормен бір қалтада (instance/avatars) — GitHub-қа түспейді."""
+    return Path(current_app.config["DATABASE"]).parent / "avatars"
+
+
+def _remove_avatar(folder: Path, name: str) -> None:
+    if name and "/" not in name and "\\" not in name:
+        (folder / name).unlink(missing_ok=True)
+
+
+def ql_minutes(value) -> str:
+    """4.0 -> '4', 2.5 -> '2.5' (минутты әдемі көрсету үшін)."""
+    return f"{float(value):g}"
 
 
 # ---------------------------------------------------------------------------
@@ -604,7 +756,7 @@ def _register_dekanat_routes(app: Flask) -> None:
 # ---------------------------------------------------------------------------
 # Әкімші панелі (декан және декан орынбасары)
 # ---------------------------------------------------------------------------
-ADMIN_TABS = ("users", "schedule", "services", "tickets", "audit")
+ADMIN_TABS = ("users", "schedule", "calendar", "services", "tickets", "audit")
 
 
 def _register_admin_routes(app: Flask) -> None:
@@ -631,6 +783,9 @@ def _register_admin_routes(app: Flask) -> None:
             tickets=repo.tickets_for_day(conn, now()), statuses=repo.ALL_STATUSES,
             audit=repo.list_audit(conn), stats=repo.stats_today(conn, now()),
             sched_form=ql.schedule_to_dict(schedule()),
+            announcements=repo.list_announcements(conn, now()),
+            day_overrides=repo.list_overrides(conn, now().strftime("%Y-%m-%d")),
+            today=now().strftime("%Y-%m-%d"),
             can_manage=lambda target_role: ql.can_manage_user(current_user()["role"], target_role),
             assignable_roles=[r for r in ql.ROLES
                               if ql.can_manage_user(current_user()["role"], r, r)])
@@ -718,6 +873,54 @@ def _register_admin_routes(app: Flask) -> None:
             flash_error(e)
         return back("schedule")
 
+    @app.post("/admin/announcements/new")
+    @role_required(*ql.MANAGER_ROLES)
+    def admin_announcement_new():
+        f = request.form
+        try:
+            a = ql.build_announcement(f.get("text"), f.get("start_day"), f.get("end_day"), now().date())
+            repo.add_announcement(db(), current_user()["id"], a, now())
+            flash("msg_saved", "ok")
+        except ql.QueueError as e:
+            flash_error(e)
+        return back("calendar")
+
+    @app.post("/admin/announcements/<int:announcement_id>/delete")
+    @role_required(*ql.MANAGER_ROLES)
+    def admin_announcement_delete(announcement_id):
+        try:
+            repo.delete_announcement(db(), current_user()["id"], announcement_id, now())
+            flash("msg_saved", "ok")
+        except ql.QueueError as e:
+            flash_error(e)
+        return back("calendar")
+
+    @app.post("/admin/days/save")
+    @role_required(*ql.MANAGER_ROLES)
+    def admin_day_save():
+        f = request.form
+        try:
+            o = ql.build_override(f.get("day"), f.get("kind"), f.get("open_at"), f.get("close_at"),
+                                  f.get("note"))
+            repo.save_override(db(), current_user()["id"], o, now())
+            flash("msg_saved", "ok")
+        except ql.QueueError as e:
+            flash_error(e)
+        return back("calendar")
+
+    @app.post("/admin/days/<day>/delete")
+    @role_required(*ql.MANAGER_ROLES)
+    def admin_day_delete(day):
+        try:
+            date.fromisoformat(day)
+            repo.delete_override(db(), current_user()["id"], day, now())
+            flash("msg_saved", "ok")
+        except ValueError:
+            flash("err_date", "error")
+        except ql.QueueError as e:
+            flash_error(e)
+        return back("calendar")
+
     @app.post("/admin/services/save")
     @role_required(*ql.MANAGER_ROLES)
     def admin_service_save():
@@ -748,6 +951,26 @@ def _register_admin_routes(app: Flask) -> None:
         except ql.QueueError as e:
             flash_error(e)
         return back("tickets")
+
+
+def _register_cli(app: Flask) -> None:
+    @app.cli.command("set-password")
+    @click.argument("username")
+    def set_password_command(username):
+        """Құпиясөзді консольден қалпына келтіру: flask --app app.web set-password admin
+
+        Декан құпиясөзін ұмытса, хостинг консолінде орындалады. Құпиясөз экранда көрінбейді.
+        """
+        password = click.prompt("Жаңа құпиясөз / Новый пароль", hide_input=True,
+                                confirmation_prompt=True)
+        conn = repo.connect(app.config["DATABASE"])
+        try:
+            repo.force_set_password(conn, username, password, app.config["NOW"]())
+            click.echo(f"OK: {username}")
+        except ql.QueueError as e:
+            raise click.ClickException(translate(e.code, "kk"))
+        finally:
+            conn.close()
 
 
 def _safe_console() -> None:
