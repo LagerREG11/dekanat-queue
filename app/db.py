@@ -642,9 +642,11 @@ def admin_save_service(conn, admin_id: int, service_id: int | None, code, name_k
 # ---------------------------------------------------------------------------
 # Талондар
 # ---------------------------------------------------------------------------
-def create_ticket(conn, user, service_id, now: datetime, priority: bool = False,
-                  check_hours: bool = True) -> sqlite3.Row:
-    """Студентке жаңа талон береді. Ережелер бұзылса QueueError шығарады."""
+MAX_ACTIVE_TICKETS = 3  # бір студенттің бір күндегі белсенді талондарының шегі
+
+
+def _ticket_service(conn, user, service_id, now: datetime, check_hours: bool) -> sqlite3.Row:
+    """Талон беруге бола ма: студент, жұмыс уақыты, қызмет. Болса — қызметті қайтарады."""
     if user is None or user["role"] != ql.STUDENT or not user["is_active"]:
         raise ql.QueueError("err_forbidden")
     if check_hours and not ql.can_take_ticket(now, get_schedule(conn), get_overrides(conn)):
@@ -656,20 +658,31 @@ def create_ticket(conn, user, service_id, now: datetime, priority: bool = False,
     service = get_service(conn, service_id)
     if service is None or not service["is_active"]:
         raise ql.QueueError("err_service")
+    return service
 
+
+def _check_ticket_limits(conn, day: str, user_id: int, service_id: int) -> None:
+    """Бір қызметке бір белсенді талон, барлығы MAX_ACTIVE_TICKETS-тен аспайды."""
+    if conn.execute(
+            "SELECT 1 FROM tickets WHERE day=? AND user_id=? AND service_id=? "
+            "AND status IN ('waiting','called')", (day, user_id, service_id)).fetchone():
+        raise ql.QueueError("err_already_in_queue")
+    active_total = conn.execute(
+        "SELECT COUNT(*) FROM tickets WHERE day=? AND user_id=? "
+        "AND status IN ('waiting','called')", (day, user_id)).fetchone()[0]
+    if active_total >= MAX_ACTIVE_TICKETS:
+        raise ql.QueueError("err_too_many")
+
+
+def create_ticket(conn, user, service_id, now: datetime, priority: bool = False,
+                  check_hours: bool = True) -> sqlite3.Row:
+    """Студентке жаңа талон береді. Ережелер бұзылса QueueError шығарады."""
+    service = _ticket_service(conn, user, service_id, now, check_hours)
+    service_id = service["id"]
     day = now.strftime("%Y-%m-%d")
     conn.execute("BEGIN IMMEDIATE")  # нөмірлер қайталанбауы үшін жазуды бұғаттаймыз
     try:
-        if conn.execute(
-                "SELECT 1 FROM tickets WHERE day=? AND user_id=? AND service_id=? "
-                "AND status IN ('waiting','called')", (day, user["id"], service_id)).fetchone():
-            raise ql.QueueError("err_already_in_queue")
-        active_total = conn.execute(
-            "SELECT COUNT(*) FROM tickets WHERE day=? AND user_id=? "
-            "AND status IN ('waiting','called')", (day, user["id"])).fetchone()[0]
-        if active_total >= 3:
-            raise ql.QueueError("err_too_many")
-
+        _check_ticket_limits(conn, day, user["id"], service_id)
         last = conn.execute("SELECT MAX(seq) FROM tickets WHERE day=? AND service_id=?",
                             (day, service_id)).fetchone()[0]
         seq = ql.next_sequence(last)
@@ -800,8 +813,8 @@ def current_ticket(conn, operator_id: int) -> sqlite3.Row | None:
                         "ORDER BY t.called_at DESC LIMIT 1", (operator_id,)).fetchone()
 
 
-def call_next(conn, operator_id: int, now: datetime) -> sqlite3.Row | None:
-    """Келесі студентті шақырады. Кезек бос болса None қайтарады."""
+def _require_window_operator(conn, operator_id: int) -> sqlite3.Row:
+    """Шақыра алатын қызметкер: рөлі дұрыс, үзілісте емес, терезесі бар."""
     op = get_user(conn, operator_id)
     if op is None or op["role"] not in ql.STAFF_ROLES:
         raise ql.QueueError("err_forbidden")
@@ -809,6 +822,12 @@ def call_next(conn, operator_id: int, now: datetime) -> sqlite3.Row | None:
         raise ql.QueueError("err_on_break")
     if not op["window_no"]:
         raise ql.QueueError("err_window")
+    return op
+
+
+def call_next(conn, operator_id: int, now: datetime) -> sqlite3.Row | None:
+    """Келесі студентті шақырады. Кезек бос болса None қайтарады."""
+    op = _require_window_operator(conn, operator_id)
     conn.execute("BEGIN IMMEDIATE")  # екі қызметкер бір талонды алмауы үшін
     try:
         if conn.execute("SELECT 1 FROM tickets WHERE operator_id=? AND status='called'",

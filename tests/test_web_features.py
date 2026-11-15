@@ -1,4 +1,6 @@
 """Веб: декан орынбасары, жұмыс кестесі, қызметкер үзілісі, көмекші-чат."""
+from datetime import UTC
+
 from app.web import create_app
 
 DEPUTY = ("zamdekan", "Deputy2026")
@@ -160,10 +162,10 @@ def test_operator_page_has_live_hooks(client):
 
 def test_local_clock_uses_qyzylorda_time():
     """Хостинг UTC-пен жұмыс істесе де, деканат уақыты UTC+5 болуы керек."""
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     from app.web import _local_clock
     local = _local_clock("Asia/Qyzylorda")()
-    utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    utc = datetime.now(UTC).replace(tzinfo=None)
     assert abs((local - utc) - timedelta(hours=5)) < timedelta(minutes=1)
     assert abs(_local_clock("No/Such_Zone")() - datetime.now()) < timedelta(minutes=1)

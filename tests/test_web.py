@@ -29,15 +29,17 @@ def take_ticket(client, service_id="1"):
 
 
 # ---------------- Ашық беттер және тілдер ----------------
-def test_home_shows_three_roles(client):
+def test_home_without_role_cards_and_buildings_table(client):
+    """Басты бетте «Кіру түрін таңдаңыз» блогы мен корпустар кестесі жоқ (тапсырыс берушінің талабы)."""
     html = client.get("/").get_data(as_text=True)
-    for word in ("Студент", "Деканат", "Декан орынбасары", "Декан", "Қорқыт Ата"):
-        assert word in html
+    assert "Қорқыт Ата" in html and "Деканатқа электрондық кезек" in html
+    assert "Кіру түрін таңдаңыз" not in html and "role-cards" not in html
+    assert "Университеттің барлық оқу корпустары" not in html
 
 
 def test_language_switch_to_ru(client):
     html = client.get("/lang/ru?next=/", follow_redirects=True).get_data(as_text=True)
-    assert "Электронная очередь деканата" in html and "Заместитель декана" in html
+    assert "Электронная очередь деканата" in html and "Кызылординский университет" in html
 
 
 def test_language_switch_unknown_ignored(client):

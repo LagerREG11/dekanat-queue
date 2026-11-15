@@ -10,6 +10,7 @@ import calendar
 import re
 from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
+from itertools import pairwise
 from math import ceil
 
 # ---------------------------------------------------------------------------
@@ -228,6 +229,24 @@ class Registration:
     password: str
 
 
+def _registration_login(kind: str, student_id: str, group_name: str,
+                        username: str) -> tuple[str, str | None, str, list[str]]:
+    """Логинді анықтайды: студентте — ЖСН (тобымен бірге), қызметкерде — өз логині."""
+    errors: list[str] = []
+    if kind == STUDENT:
+        student_id = (student_id or "").strip()
+        group_name = (group_name or "").strip().upper()
+        if not is_valid_iin(student_id):
+            errors.append("err_iin")
+        if not group_name or not GROUP_RE.match(group_name):
+            errors.append("err_group")
+        return student_id, student_id, group_name, errors
+    username = (username or "").strip().lower()
+    if not USERNAME_RE.match(username):
+        errors.append("err_username")
+    return username, None, "", errors
+
+
 def validate_registration(kind: str, full_name: str, password: str, password2: str,
                           student_id: str = "", group_name: str = "",
                           username: str = "") -> tuple[Registration | None, list[str]]:
@@ -245,20 +264,9 @@ def validate_registration(kind: str, full_name: str, password: str, password2: s
     if not NAME_RE.match(full_name):
         errors.append("err_name")
 
-    if kind == STUDENT:
-        student_id = (student_id or "").strip()
-        group_name = (group_name or "").strip().upper()
-        if not is_valid_iin(student_id):
-            errors.append("err_iin")
-        if not group_name or not GROUP_RE.match(group_name):
-            errors.append("err_group")
-        username = student_id
-    else:
-        username = (username or "").strip().lower()
-        student_id, group_name = None, ""
-        if not USERNAME_RE.match(username):
-            errors.append("err_username")
-
+    username, student_id, group_name, login_errors = _registration_login(
+        kind, student_id, group_name, username)
+    errors += login_errors
     errors += validate_password(password, password2)
     if errors:
         return None, errors
@@ -297,7 +305,7 @@ def estimate_wait_minutes(people_ahead: int, avg_minutes: float,
         return 0
     windows = max(1, int(active_windows))
     rounds = ceil(people_ahead / windows)
-    return int(ceil(rounds * avg_minutes))
+    return ceil(rounds * avg_minutes)
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +405,7 @@ def _check_interval(interval, start: time, end: time, code: str) -> None:
 
 def _check_no_overlap(intervals) -> None:
     ordered = sorted(intervals)
-    for (_, prev_end), (next_start, _) in zip(ordered, ordered[1:]):
+    for (_, prev_end), (next_start, _) in pairwise(ordered):
         if next_start < prev_end:
             raise QueueError("err_break_overlap")
 
@@ -670,4 +678,4 @@ def pick_next(waiting: list[dict], service_ids: set[int] | None = None) -> dict 
     pool = [t for t in waiting if service_ids is None or t["service_id"] in service_ids]
     if not pool:
         return None
-    return sorted(pool, key=lambda t: (-int(t.get("priority", 0)), t["created_at"], t["id"]))[0]
+    return min(pool, key=lambda t: (-int(t.get("priority", 0)), t["created_at"], t["id"]))

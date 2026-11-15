@@ -52,26 +52,27 @@ AVATAR_MAX_BYTES = 2 * 1024 * 1024  # профиль суреті 2 МБ-тан 
 # ---------------------------------------------------------------------------
 # Қолданба фабрикасы (тесттерде басқа баптаулармен жасауға болады)
 # ---------------------------------------------------------------------------
-def create_app(config: dict | None = None) -> Flask:
-    app = Flask(__name__)
-    app.config.update(
-        DATABASE=str(BASE_DIR / "instance" / "dekanat.db"),
-        SECRET_KEY=os.environ.get("SECRET_KEY") or _load_or_create_secret(),
-        SESSION_COOKIE_HTTPONLY=True,
-        SESSION_COOKIE_SAMESITE="Lax",
-        SESSION_COOKIE_SECURE=os.environ.get("COOKIE_SECURE") == "1",
-        CHECK_HOURS=os.environ.get("QUEUE_DEMO", "0") != "1",  # QUEUE_DEMO=1 — уақыт тексерілмейді
-        RATE_LIMIT=5,            # бір IP-ден минутына неше талон / тіркелу
-        LOGIN_LIMIT=10,          # бір IP-ден минутына неше кіру әрекеті
-        NOW=_local_clock(os.environ.get("APP_TIMEZONE", DEFAULT_TIMEZONE)),  # тесттерде ауыстырылады
-        PUBLIC_URL=os.environ.get("PUBLIC_URL", ""),  # QR-кодтағы мекенжай (телефондар үшін)
-        SHOW_DEMO_ACCOUNTS=os.environ.get("SHOW_DEMO_ACCOUNTS", "1") != "0",  # хостингте 0
-        MAX_CONTENT_LENGTH=3 * 1024 * 1024,  # сұрау көлемі (сурет жүктеу үшін) 3 МБ-тан аспайды
-        TESTING=False,
-    )
-    if config:
-        app.config.update(config)
+def _default_config() -> dict:
+    """Қолданбаның әдепкі баптаулары (орта айнымалылары арқылы өзгертіледі)."""
+    return {
+        "DATABASE": str(BASE_DIR / "instance" / "dekanat.db"),
+        "SECRET_KEY": os.environ.get("SECRET_KEY") or _load_or_create_secret(),
+        "SESSION_COOKIE_HTTPONLY": True,
+        "SESSION_COOKIE_SAMESITE": "Lax",
+        "SESSION_COOKIE_SECURE": os.environ.get("COOKIE_SECURE") == "1",
+        "CHECK_HOURS": os.environ.get("QUEUE_DEMO", "0") != "1",  # QUEUE_DEMO=1 — уақыт тексерілмейді
+        "RATE_LIMIT": 5,            # бір IP-ден минутына неше талон / тіркелу
+        "LOGIN_LIMIT": 10,          # бір IP-ден минутына неше кіру әрекеті
+        "NOW": _local_clock(os.environ.get("APP_TIMEZONE", DEFAULT_TIMEZONE)),  # тесттерде ауыстырылады
+        "PUBLIC_URL": os.environ.get("PUBLIC_URL", ""),  # QR-кодтағы мекенжай (телефондар үшін)
+        "SHOW_DEMO_ACCOUNTS": os.environ.get("SHOW_DEMO_ACCOUNTS", "1") != "0",  # хостингте 0
+        "MAX_CONTENT_LENGTH": 3 * 1024 * 1024,  # сұрау көлемі (сурет жүктеу үшін) 3 МБ-тан аспайды
+        "TESTING": False,
+    }
 
+
+def _open_startup_db(app: Flask) -> None:
+    """Дерекқорды жасап, кестелер мен бастапқы деректерді дайындайды."""
     if app.config["DATABASE"] != ":memory:":
         Path(app.config["DATABASE"]).parent.mkdir(parents=True, exist_ok=True)
     if app.config["DATABASE"] == ":memory:":
@@ -85,19 +86,16 @@ def create_app(config: dict | None = None) -> Flask:
     app.extensions["db"] = conn
     app.extensions["rate"] = defaultdict(deque)
 
-    @app.teardown_appcontext
-    def close_db(_exc):
-        request_conn = g.pop("db_conn", None)
-        if request_conn is not None:
-            request_conn.close()
 
-    _register_helpers(app)
-    _register_public_routes(app)
-    _register_auth_routes(app)
-    _register_student_routes(app)
-    _register_dekanat_routes(app)
-    _register_admin_routes(app)
-    _register_cli(app)
+def create_app(config: dict | None = None) -> Flask:
+    app = Flask(__name__)
+    app.config.update(_default_config())
+    if config:
+        app.config.update(config)
+    _open_startup_db(app)
+
+    for register in ROUTE_GROUPS:
+        register(app)
     return app
 
 
@@ -366,6 +364,9 @@ def _register_helpers(app: Flask) -> None:
                 flash("err_csrf", "error")
                 return redirect(request.path)
 
+
+
+def _register_security_headers(app: Flask) -> None:
     @app.after_request
     def security_headers(resp):
         resp.headers["X-Content-Type-Options"] = "nosniff"
@@ -375,6 +376,9 @@ def _register_helpers(app: Flask) -> None:
             "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'")
         return resp
 
+
+
+def _register_error_handlers(app: Flask) -> None:
     @app.errorhandler(404)
     def not_found(_e):
         return render_template("error.html", message=t("err_404")), 404
@@ -425,6 +429,9 @@ def _register_public_routes(app: Flask) -> None:
             open_windows=max((s["windows"] for s in services), default=0),
             is_open=open_now(), cal=calendar_view())
 
+
+
+def _register_ticket_routes(app: Flask) -> None:
     @app.get("/ticket/<token>")
     def ticket_page(token):
         ticket = repo.get_ticket_by_token(db(), token)
@@ -449,6 +456,9 @@ def _register_public_routes(app: Flask) -> None:
         resp.headers["Cache-Control"] = "no-store"
         return resp
 
+
+
+def _register_chat_routes(app: Flask) -> None:
     @app.post("/api/chat")
     def api_chat():
         """Көмекші-чат: {"message": "..."} -> {"reply": "...", "suggestions": [...]}."""
@@ -466,6 +476,9 @@ def _register_public_routes(app: Flask) -> None:
         result = chatbot.answer(message, lang(), ctx)
         return jsonify(reply=result["reply"], suggestions=result["suggestions"])
 
+
+
+def _register_board_routes(app: Flask) -> None:
     @app.get("/board")
     def board():
         return render_template("board.html", data=repo.board_data(db(), now()))
@@ -506,6 +519,9 @@ def _register_auth_routes(app: Flask) -> None:
                 flash(err, "error")
         return render_template("register.html", kind=kind, form=form)
 
+
+
+def _register_login_routes(app: Flask) -> None:
     @app.route("/login", methods=["GET", "POST"])
     def login():
         role = request.values.get("role", ql.STUDENT)
@@ -536,6 +552,9 @@ def _register_auth_routes(app: Flask) -> None:
                 return redirect(safe_next(request.form.get("next"), default))
         return render_template("login.html", role=role)
 
+
+
+def _register_logout_routes(app: Flask) -> None:
     @app.post("/logout")
     def logout():
         user = current_user()
@@ -548,6 +567,9 @@ def _register_auth_routes(app: Flask) -> None:
         flash("msg_logged_out", "ok")
         return redirect(url_for("index"))
 
+
+
+def _register_profile_routes(app: Flask) -> None:
     @app.route("/profile", methods=["GET", "POST"])
     @role_required(*ql.ROLES)
     def profile():
@@ -572,6 +594,9 @@ def _register_auth_routes(app: Flask) -> None:
         services = [s for s in repo.list_services(db(), False) if s["id"] in sids]
         return render_template("profile.html", services=services, form=request.form)
 
+
+
+def _register_avatar_routes(app: Flask) -> None:
     @app.post("/profile/avatar")
     @role_required(*ql.ROLES)
     def profile_avatar():
@@ -600,6 +625,9 @@ def _register_auth_routes(app: Flask) -> None:
             flash_error(e)
         return redirect(url_for("profile"))
 
+
+
+def _register_avatar_view_routes(app: Flask) -> None:
     @app.get("/avatar/<int:user_id>")
     def avatar(user_id):
         """Профиль суреті: иесіне және деканат қызметкерлеріне ғана көрінеді."""
@@ -657,6 +685,9 @@ def _register_student_routes(app: Flask) -> None:
         queue = ",".join(str(repo.people_ahead(db(), r)) for r in rows if r["status"] == ql.WAITING)
         return jsonify(signature=sig + "|" + queue)
 
+
+
+def _register_student_ticket_routes(app: Flask) -> None:
     @app.post("/student/ticket")
     @role_required(ql.STUDENT)
     def student_take_ticket():
@@ -710,6 +741,9 @@ def _register_dekanat_routes(app: Flask) -> None:
             flash_error(e)
         return redirect(url_for("dekanat_panel"))
 
+
+
+def _register_dekanat_action_routes(app: Flask) -> None:
     @app.post("/dekanat/ticket/<int:ticket_id>/<action>")
     @role_required(*ql.STAFF_ROLES)
     def dekanat_action(ticket_id, action):
@@ -739,6 +773,9 @@ def _register_dekanat_routes(app: Flask) -> None:
         return redirect(url_for("dekanat_panel"))
 
 
+
+
+def _register_staff_api_routes(app: Flask) -> None:
     @app.get("/api/staff/queue")
     @role_required(*ql.STAFF_ROLES)
     def api_staff_queue():
@@ -760,10 +797,27 @@ def _register_dekanat_routes(app: Flask) -> None:
 ADMIN_TABS = ("users", "schedule", "calendar", "services", "tickets", "audit")
 
 
-def _register_admin_routes(app: Flask) -> None:
+def _registration_from_form(f) -> tuple:
+    """Әкімші панеліндегі «Жаңа аккаунт» формасын тексереді: (reg, errors)."""
+    role = f.get("role")
+    if role == ql.STUDENT:
+        return ql.validate_registration(ql.STUDENT, f.get("full_name"), f.get("password"), None,
+                                        f.get("student_id"), f.get("group_name"))
+    reg, errors = ql.validate_registration(ql.DEKANAT, f.get("full_name"), f.get("password"),
+                                           None, username=f.get("username"))
+    if reg and role in ql.STAFF_ROLES:
+        reg.role = role
+    elif reg:
+        errors = ["err_role"]
+    return reg, errors
 
-    def back(tab: str):
-        return redirect(url_for("admin_panel", tab=tab))
+
+def back(tab: str):
+    """Басқару панелінің берілген қойындысына қайтару."""
+    return redirect(url_for("admin_panel", tab=tab))
+
+
+def _register_admin_routes(app: Flask) -> None:
 
     @app.get("/admin")
     @role_required(*ql.MANAGER_ROLES)
@@ -791,6 +845,9 @@ def _register_admin_routes(app: Flask) -> None:
             assignable_roles=[r for r in ql.ROLES
                               if ql.can_manage_user(current_user()["role"], r, r)])
 
+
+
+def _register_manage_api_routes(app: Flask) -> None:
     @app.get("/api/manage/changes")
     @role_required(*ql.MANAGER_ROLES)
     def api_manage_changes():
@@ -801,24 +858,15 @@ def _register_admin_routes(app: Flask) -> None:
         sig = ",".join(f"{r['id']}:{r['status']}" for r in rows) + f"|p{repo.count_pending(conn)}"
         return jsonify(signature=sig, tickets=len(rows), pending=repo.count_pending(conn))
 
+
+
+def _register_admin_user_routes(app: Flask) -> None:
     @app.post("/admin/users/new")
     @role_required(*ql.MANAGER_ROLES)
     def admin_user_new():
         f = request.form
-        role = f.get("role")
         try:
-            if role == ql.STUDENT:
-                reg, errors = ql.validate_registration(
-                    ql.STUDENT, f.get("full_name"), f.get("password"), None,
-                    f.get("student_id"), f.get("group_name"))
-            else:
-                reg, errors = ql.validate_registration(
-                    ql.DEKANAT, f.get("full_name"), f.get("password"), None,
-                    username=f.get("username"))
-                if reg and role in ql.STAFF_ROLES:
-                    reg.role = role
-                elif reg:
-                    errors = ["err_role"]
+            reg, errors = _registration_from_form(f)
             if not errors and not ql.can_manage_user(current_user()["role"], reg.role, reg.role):
                 errors = ["err_forbidden"]
             if errors:
@@ -836,6 +884,9 @@ def _register_admin_routes(app: Flask) -> None:
             flash_error(e)
         return back("users")
 
+
+
+def _register_admin_user_action_routes(app: Flask) -> None:
     @app.post("/admin/users/<int:user_id>/<action>")
     @role_required(*ql.MANAGER_ROLES)
     def admin_user_action(user_id, action):
@@ -861,6 +912,9 @@ def _register_admin_routes(app: Flask) -> None:
             flash_error(e)
         return back("users")
 
+
+
+def _register_admin_schedule_routes(app: Flask) -> None:
     @app.post("/admin/schedule")
     @role_required(*ql.MANAGER_ROLES)
     def admin_schedule_save():
@@ -874,6 +928,9 @@ def _register_admin_routes(app: Flask) -> None:
             flash_error(e)
         return back("schedule")
 
+
+
+def _register_admin_announcement_routes(app: Flask) -> None:
     @app.post("/admin/announcements/new")
     @role_required(*ql.MANAGER_ROLES)
     def admin_announcement_new():
@@ -896,6 +953,9 @@ def _register_admin_routes(app: Flask) -> None:
             flash_error(e)
         return back("calendar")
 
+
+
+def _register_admin_day_routes(app: Flask) -> None:
     @app.post("/admin/days/save")
     @role_required(*ql.MANAGER_ROLES)
     def admin_day_save():
@@ -922,6 +982,9 @@ def _register_admin_routes(app: Flask) -> None:
             flash_error(e)
         return back("calendar")
 
+
+
+def _register_admin_service_routes(app: Flask) -> None:
     @app.post("/admin/services/save")
     @role_required(*ql.MANAGER_ROLES)
     def admin_service_save():
@@ -937,6 +1000,9 @@ def _register_admin_routes(app: Flask) -> None:
             flash_error(e)
         return back("services")
 
+
+
+def _register_admin_ticket_routes(app: Flask) -> None:
     @app.post("/admin/tickets/<int:ticket_id>/<action>")
     @role_required(*ql.MANAGER_ROLES)
     def admin_ticket_action(ticket_id, action):
@@ -972,6 +1038,48 @@ def _register_cli(app: Flask) -> None:
             raise click.ClickException(translate(e.code, "kk"))
         finally:
             conn.close()
+
+
+def _register_teardown(app: Flask) -> None:
+    @app.teardown_appcontext
+    def close_db(_exc):
+        request_conn = g.pop("db_conn", None)
+        if request_conn is not None:
+            request_conn.close()
+
+
+# Барлық маршрут топтары: create_app() оларды осы ретпен тіркейді.
+ROUTE_GROUPS = (
+    _register_teardown,
+    _register_helpers,
+    _register_public_routes,
+    _register_auth_routes,
+    _register_student_routes,
+    _register_dekanat_routes,
+    _register_admin_routes,
+    _register_security_headers,
+    _register_error_handlers,
+    _register_ticket_routes,
+    _register_chat_routes,
+    _register_board_routes,
+    _register_login_routes,
+    _register_logout_routes,
+    _register_profile_routes,
+    _register_avatar_routes,
+    _register_student_ticket_routes,
+    _register_dekanat_action_routes,
+    _register_staff_api_routes,
+    _register_manage_api_routes,
+    _register_admin_user_routes,
+    _register_admin_user_action_routes,
+    _register_admin_schedule_routes,
+    _register_admin_day_routes,
+    _register_admin_service_routes,
+    _register_admin_ticket_routes,
+    _register_avatar_view_routes,
+    _register_admin_announcement_routes,
+    _register_cli,
+)
 
 
 def _safe_console() -> None:

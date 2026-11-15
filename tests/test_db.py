@@ -1,4 +1,5 @@
 """Дерекқор деңгейінің тесттері (SQLite жадта)."""
+import sqlite3
 from datetime import timedelta
 
 import pytest
@@ -33,7 +34,7 @@ def test_seed_is_idempotent_and_has_all_roles(conn):
 
 
 def test_role_check_constraint(conn):
-    with pytest.raises(Exception):
+    with pytest.raises(sqlite3.IntegrityError):
         conn.execute("INSERT INTO users (username, password_hash, full_name, role, created_at) "
                      "VALUES ('x','h','X','superuser','2026-01-01 00:00:00')")
 

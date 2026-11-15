@@ -134,22 +134,6 @@
   </ol>
 </section>
 
-<section class="box">
-  <h2 class="box-title">{{ t('choose_role') }}</h2>
-  <ul class="role-cards">
-    <li><b>{{ t('role_admin') }}</b><p>{{ t('role_admin_desc') }}</p>
-      <div class="links"><a href="{{ url_for('login', role='admin') }}">{{ t('nav_login') }}</a></div></li>
-    <li><b>{{ t('role_dekanat') }}</b><p>{{ t('role_dekanat_desc') }}</p>
-      <div class="links"><a href="{{ url_for('login', role='dekanat') }}">{{ t('nav_login') }}</a> ·
-        <a href="{{ url_for('register', kind='dekanat') }}">{{ t('nav_register') }}</a></div></li>
-    <li><b>{{ t('role_deputy') }}</b><p>{{ t('role_deputy_desc') }}</p>
-      <div class="links"><a href="{{ url_for('login', role='deputy') }}">{{ t('nav_login') }}</a></div></li>
-    <li><b>{{ t('role_student') }}</b><p>{{ t('role_student_desc') }}</p>
-      <div class="links"><a href="{{ url_for('login', role='student') }}">{{ t('nav_login') }}</a> ·
-        <a href="{{ url_for('register', kind='student') }}">{{ t('nav_register') }}</a></div></li>
-  </ul>
-</section>
-
 {# ---------- 4. Университет туралы ---------- #}
 <section class="box" id="about">
   <h2 class="box-title">{{ t('about_title') }}</h2>
@@ -184,16 +168,6 @@
         {% for f in uni.building5.features %}<li>{{ f.text }}</li>{% endfor %}
       </ul>
     </div>
-  </div>
-
-  <h3>{{ t('buildings_title') }}</h3>
-  <div class="table-wrap">
-    <table class="table">
-      <tr><th>{{ t('col_building') }}</th><th>{{ t('col_address') }}</th><th>{{ t('col_note') }}</th></tr>
-      {% for b in uni.buildings %}
-        <tr class="{{ 'row-mark' if b.no == '5' }}"><td>{{ b.no }}</td><td>{{ b.address }}</td><td>{{ b.note or '—' }}</td></tr>
-      {% endfor %}
-    </table>
   </div>
 </section>
 
