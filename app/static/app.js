@@ -23,7 +23,7 @@
     f.addEventListener("submit", function (e) {
       if (f.dataset.confirmed === "1") return;
       e.preventDefault();
-      if (f.querySelector(".confirm-bar")) return;
+      if (f.confirmBar && f.confirmBar.isConnected) return;
       const bar = document.createElement("div");
       bar.className = "confirm-bar";
       bar.setAttribute("role", "alertdialog");
@@ -44,7 +44,19 @@
       });
       no.addEventListener("click", function () { bar.remove(); });
       bar.append(text, yes, no);
-      f.appendChild(bar);
+      // Форма жолдың ішінде (мысалы, хабарландыру жанындағы «Өшіру») тұрса, растау жолақшасы
+      // тар формаға сыймай, беттен шығып кетеді. Ондай кезде оны жолдың астына, толық енімен қоямыз.
+      const parent = f.parentElement;
+      const style = parent ? window.getComputedStyle(parent) : null;
+      if (style && style.display.indexOf("flex") >= 0 && style.flexDirection.indexOf("row") === 0) {
+        parent.classList.add("has-confirm");
+        bar.classList.add("confirm-bar-wide");
+        f.after(bar);
+        no.addEventListener("click", function () { parent.classList.remove("has-confirm"); });
+      } else {
+        f.appendChild(bar);
+      }
+      f.confirmBar = bar;
       yes.focus();
     });
   });
