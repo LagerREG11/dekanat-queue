@@ -646,6 +646,63 @@ def detect_image_type(data: bytes) -> str:
     raise QueueError("err_avatar_type")
 
 
+MAX_REPORT_DAYS = 366  # есеп кезеңі бір жылдан аспайды
+REPORT_DEFAULT_DAYS = 7
+
+
+def parse_period(start: str, end: str, today: date) -> tuple[date, date]:
+    """Есеп кезеңі: бос болса — соңғы 7 күн. Қате болса QueueError('err_period')."""
+    try:
+        d_end = date.fromisoformat(end) if end else today
+        d_start = date.fromisoformat(start) if start else d_end - timedelta(days=REPORT_DEFAULT_DAYS - 1)
+    except ValueError:
+        raise QueueError("err_period")
+    if d_start > d_end or (d_end - d_start).days >= MAX_REPORT_DAYS:
+        raise QueueError("err_period")
+    return d_start, d_end
+
+
+def minutes_between(a: str | None, b: str | None) -> float | None:
+    """Екі уақыт белгісі арасындағы минут (біреуі жоқ болса — None)."""
+    if not a or not b:
+        return None
+    return (datetime.fromisoformat(b) - datetime.fromisoformat(a)).total_seconds() / 60
+
+
+def _avg(values: list[float]) -> float:
+    return round(sum(values) / len(values), 1) if values else 0
+
+
+def _stats(rows: list[dict]) -> dict:
+    """Талондар тобының қысқаша көрсеткіштері."""
+    done = [r for r in rows if r["status"] == DONE]
+    waits = [m for r in done if (m := minutes_between(r["created_at"], r["called_at"])) is not None]
+    serv = [m for r in done if (m := minutes_between(r["called_at"], r["finished_at"])) is not None]
+    count = {s: sum(1 for r in rows if r["status"] == s) for s in (DONE, NO_SHOW, CANCELLED, WAITING)}
+    return {"total": len(rows), "done": count[DONE], "no_show": count[NO_SHOW],
+            "cancelled": count[CANCELLED], "waiting": count[WAITING],
+            "avg_wait": _avg(waits), "avg_service": _avg(serv)}
+
+
+def summarize_tickets(rows: list[dict], name_key: str = "name_kk") -> dict:
+    """Кезеңдегі талондар бойынша есеп: жалпы, қызмет, терезе және күн бойынша."""
+    def grouped(key):
+        groups: dict = {}
+        for r in rows:
+            groups.setdefault(key(r), []).append(r)
+        return [dict(_stats(items), key=k) for k, items in sorted(groups.items(), key=lambda kv: str(kv[0]))]
+    return {"summary": _stats(rows),
+            "by_service": grouped(lambda r: r[name_key]),
+            "by_window": grouped(lambda r: r["window_no"] or "—"),
+            "by_day": grouped(lambda r: r["day"])}
+
+
+def matches(query: str, *fields) -> bool:
+    """Іздеу: сұраныс өрістердің бірінде (әріп өлшеміне қарамай) кездесе ме."""
+    q = (query or "").strip().casefold()
+    return not q or any(q in str(f or "").casefold() for f in fields)
+
+
 def validate_group(group_name: str, errors: list[str] | None = None) -> str:
     """Топ атауы міндетті емес; жазылса, пішімі тексеріледі (мысалы, ИС-24-1)."""
     group_name = (group_name or "").strip().upper()

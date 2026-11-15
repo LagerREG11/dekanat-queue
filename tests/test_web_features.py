@@ -200,3 +200,59 @@ def test_no_login_hint_and_no_course_project_note(client):
     """Кіру бетіндегі ескерту мен төменгі бөліктегі «Курстық жоба · 5-нұсқа» алынып тасталды."""
     html = client.get("/login").get_data(as_text=True)
     assert "таңдаған логиніңізді" not in html and "Курстық жоба" not in html
+
+
+# ---------------- 7-кезең: есептер, CSV, іздеу, резервтік көшірме, табло дыбысы ----------------
+def _staff_login(client, username, password):
+    client.post("/login", data={"username": username, "password": password})
+
+
+def test_reports_tab_and_csv_export(client, clock):
+    from conftest import make_iin
+    for i in range(3):
+        sid = make_iin(600 + i)
+        client.post("/register", data={"full_name": "Тест Студент", "username": sid,
+                                       "password": "Test#2026", "password2": "Test#2026"})
+        client.post("/login", data={"username": sid, "password": "Test#2026"})
+        client.post("/student/ticket", data={"service_id": "1"})
+        client.post("/logout")
+    _staff_login(client, "dekanat1", "Dekanat2026")
+    client.post("/dekanat/next")
+    clock.advance(4)
+    client.post("/dekanat/ticket/1/done")
+    html = client.get("/admin?tab=reports").get_data(as_text=True)
+    assert "Кезеңдегі есеп" in html and "Қызметтер бойынша" in html and "Терезелер бойынша" in html
+    r = client.get("/admin/reports.csv?start=2026-11-10&end=2026-11-16")
+    assert r.status_code == 200 and "attachment" in r.headers["Content-Disposition"]
+    text = r.get_data(as_text=True)
+    assert text.startswith("﻿") and text.count("\n") == 4 and "A-001" in text and ";4.0" in text
+    bad = client.get("/admin?tab=reports&start=2026-11-20&end=2026-11-01").get_data(as_text=True)
+    assert "Кезең қате" in bad
+
+
+def test_reports_and_backup_access(client):
+    assert client.get("/admin/reports.csv").status_code == 302          # кірмеген
+    _staff_login(client, "dekanat1", "Dekanat2026")
+    r = client.get("/admin/backup")                                   # тек администратор
+    assert r.status_code in (302, 403) and not r.data.startswith(b"SQLite")
+    client.post("/logout")
+    _staff_login(client, "admin", "Admin2026")
+    r = client.get("/admin/backup")
+    assert r.status_code == 200 and r.data[:16] == b"SQLite format 3\x00"
+    assert "Дерекқорды жүктеу" in client.get("/admin?tab=reports").get_data(as_text=True)
+
+
+def test_admin_search_users_and_tickets(client):
+    _staff_login(client, "admin", "Admin2026")
+    html = client.get("/admin?tab=users&q=zamdek").get_data(as_text=True)
+    assert "zamdekan" in html and "dekanat1</span>" not in html
+    assert 'name="q"' in client.get("/admin?tab=tickets").get_data(as_text=True)
+
+
+def test_board_voice_and_ticket_soon_alert(client):
+    html = client.get("/board").get_data(as_text=True)
+    assert 'id="sound-toggle"' in html and "data-say-ru=" in html and "Пройдите к окну" in html
+    client.post("/login", data={"username": "030512501238", "password": "Student2026"})
+    r = client.post("/student/ticket", data={"service_id": "1"})
+    page = client.get(r.headers["Location"]).get_data(as_text=True)
+    assert 'id="t-soon"' in page and "Кезегіңіз жақындады" in page and "data-soon=" in page

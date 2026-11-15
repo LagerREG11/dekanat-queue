@@ -16,7 +16,7 @@
 </div>
 
 <div class="tabs">
-  {% for tb in ('users', 'schedule', 'calendar', 'services', 'tickets') %}
+  {% for tb in ('users', 'schedule', 'calendar', 'services', 'tickets', 'reports') %}
     <a class="{{ 'active' if tb == tab }}" href="{{ url_for('admin_panel', tab=tb) }}">{{ t('tab_' + tb) }}{% if tb == 'users' and pending %}<span class="count">{{ pending }}</span>{% endif %}</a>
   {% endfor %}
 </div>
@@ -24,6 +24,12 @@
 {# ---------- Пайдаланушылар ---------- #}
 {% if tab == 'users' %}
 <section class="box">
+  <form method="get" class="search-form" role="search">
+    <input type="hidden" name="tab" value="users">
+    {% if role_filter %}<input type="hidden" name="role" value="{{ role_filter }}">{% endif %}
+    <input type="search" name="q" value="{{ q }}" placeholder="{{ t('search_users_ph') }}" aria-label="{{ t('search') }}">
+    <button class="btn" type="submit">{{ t('search') }}</button>
+  </form>
   <div class="filter">{{ t('filter') }}:
     <a class="{{ 'active' if not role_filter }}" href="{{ url_for('admin_panel', tab='users') }}">{{ t('all') }}</a>
     {% for r in roles %}
@@ -239,6 +245,11 @@
 <section class="box">
   <h2 class="box-title">{{ t('tickets_today') }} ({{ tickets|length }})</h2>
   <p class="muted small">{{ t('tickets_fix_hint') }}</p>
+  <form method="get" class="search-form" role="search">
+    <input type="hidden" name="tab" value="tickets">
+    <input type="search" name="q" value="{{ q }}" placeholder="{{ t('search_tickets_ph') }}" aria-label="{{ t('search') }}">
+    <button class="btn" type="submit">{{ t('search') }}</button>
+  </form>
   {% if tickets %}
   <table class="table table-cards">
     <thead><tr><th>{{ t('board_ticket') }}</th><th>{{ t('student') }}</th><th>{{ t('created') }}</th><th>{{ t('window') }}</th><th>{{ t('status') }}</th><th></th></tr></thead>
@@ -276,4 +287,54 @@
 </section>
 {% endif %}
 
+{# ---------- Есептер ---------- #}
+{% if tab == 'reports' and report %}
+<section class="box">
+  <h2 class="box-title">{{ t('rep_title') }}</h2>
+  <form method="get" class="form report-form">
+    <input type="hidden" name="tab" value="reports">
+    <div class="row">
+      <div><label for="rep-start">{{ t('rep_from') }}</label><input id="rep-start" name="start" type="date" value="{{ report.start }}"></div>
+      <div><label for="rep-end">{{ t('rep_to') }}</label><input id="rep-end" name="end" type="date" value="{{ report.end }}"></div>
+    </div>
+    <div class="buttons">
+      <button class="btn btn-primary" type="submit">{{ t('rep_show') }}</button>
+      <a class="btn" href="{{ url_for('admin_reports_csv', start=report.start, end=report.end) }}">{{ t('rep_export') }}</a>
+    </div>
+  </form>
+  {% set sm = report.summary %}
+  <div class="stat-line gap-top">
+    <span>{{ t('s_total') }}: <b>{{ sm.total }}</b></span>
+    <span>{{ t('s_done') }}: <b>{{ sm.done }}</b></span>
+    <span>{{ t('s_no_show') }}: <b>{{ sm.no_show }}</b></span>
+    <span>{{ t('s_cancelled') }}: <b>{{ sm.cancelled }}</b></span>
+    <span>{{ t('s_avg_wait') }}: <b>{{ sm.avg_wait }}</b></span>
+    <span>{{ t('s_avg_service') }}: <b>{{ sm.avg_service }}</b></span>
+  </div>
+  {% if not sm.total %}<p class="muted">{{ t('rep_empty') }}</p>{% endif %}
+  {% for title, key, items in [(t('rep_by_service'), 'service', report.by_service), (t('rep_by_window'), 'window', report.by_window), (t('rep_by_day'), 'date', report.by_day)] %}
+    {% if items %}
+    <h3>{{ title }}</h3>
+    <div class="table-wrap">
+      <table class="table table-cards">
+        <thead><tr><th>{{ t(key) }}</th><th>{{ t('s_total') }}</th><th>{{ t('s_done') }}</th><th>{{ t('s_no_show') }}</th><th>{{ t('s_avg_wait') }}</th><th>{{ t('s_avg_service') }}</th></tr></thead>
+        <tbody>
+        {% for g in items %}
+          <tr><td data-label="{{ t(key) }}">{{ g.key }}</td><td data-label="{{ t('s_total') }}">{{ g.total }}</td><td data-label="{{ t('s_done') }}">{{ g.done }}</td>
+              <td data-label="{{ t('s_no_show') }}">{{ g.no_show }}</td><td data-label="{{ t('s_avg_wait') }}">{{ g.avg_wait }}</td><td data-label="{{ t('s_avg_service') }}">{{ g.avg_service }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  {% endfor %}
+</section>
+{% if user.role == 'admin' %}
+<section class="box">
+  <h2 class="box-title">{{ t('rep_backup') }}</h2>
+  <p class="muted small">{{ t('rep_backup_hint') }}</p>
+  <a class="btn" href="{{ url_for('admin_backup') }}">{{ t('rep_backup_btn') }}</a>
+</section>
+{% endif %}
+{% endif %}
 {% endblock %}

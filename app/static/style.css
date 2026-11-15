@@ -534,3 +534,10 @@ table.calendar { width: 100%; border-collapse: separate; border-spacing: 4px; ta
   background: transparent; color: var(--navy); cursor: pointer; }
 .pw-toggle:hover { background: var(--gold-soft); }
 .pw-toggle:focus-visible { outline: 3px solid rgba(201, 160, 67, .45); }
+
+/* Іздеу, есептер, табло дыбысы */
+.search-form { display: flex; gap: 8px; margin: 4px 0 14px; flex-wrap: wrap; }
+.search-form input[type=search] { flex: 1 1 220px; padding: 9px 12px; font: inherit; font-size: 15px;
+  border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; }
+.report-form .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn-sound { margin-left: auto; margin-right: 12px; }

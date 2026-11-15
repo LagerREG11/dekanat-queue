@@ -740,6 +740,29 @@ def tickets_for_day(conn, now: datetime) -> list[sqlite3.Row]:
                         (now.strftime("%Y-%m-%d"),)).fetchall()
 
 
+def tickets_between(conn, start: str, end: str) -> list[dict]:
+    """[start, end] күндер аралығындағы барлық талон (есеп пен CSV үшін)."""
+    rows = conn.execute(TICKET_SELECT + "WHERE t.day BETWEEN ? AND ? ORDER BY t.day, t.id",
+                        (start, end)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def backup_bytes(conn) -> bytes:
+    """Дерекқордың толық көшірмесі (SQLite backup API) — файл ретінде жүктеуге."""
+    import os
+    import tempfile
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    try:
+        target = sqlite3.connect(path)
+        with target:
+            conn.backup(target)
+        target.close()
+        return Path(path).read_bytes()
+    finally:
+        os.remove(path)
+
+
 def people_ahead(conn, ticket) -> int:
     """Осы талонның алдында тұрған күтудегі адамдар саны."""
     if ticket["status"] != ql.WAITING:

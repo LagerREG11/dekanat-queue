@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ t('board_title') }}{% endblock %}
-{% block body_attrs %}data-page="board" data-api="{{ url_for('api_board') }}" data-empty="{{ t('board_empty') }}" data-break="{{ t('board_on_break') }}" data-working="{{ t('board_working') }}" data-window="{{ t('window') }}" data-lang="{{ lang }}" data-queue-empty="{{ t('board_queue_empty') }}"{% endblock %}
+{% block body_attrs %}data-page="board" data-api="{{ url_for('api_board') }}" data-empty="{{ t('board_empty') }}" data-break="{{ t('board_on_break') }}" data-working="{{ t('board_working') }}" data-window="{{ t('window') }}" data-lang="{{ lang }}" data-queue-empty="{{ t('board_queue_empty') }}" data-say-kk="{{ t('say_kk') }}" data-say-ru="{{ t('say_ru') }}" data-sound-on="{{ t('board_sound_on') }}" data-sound-active="{{ t('board_sound_active') }}"{% endblock %}
 {% block content %}
 <div class="board-head">
   <h1>{{ t('board_title') }}</h1>
+  <button class="btn btn-sound" id="sound-toggle" type="button" aria-pressed="false">{{ t('board_sound_on') }}</button>
   <span class="clock" id="clock"></span>
 </div>
 

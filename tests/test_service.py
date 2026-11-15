@@ -256,3 +256,20 @@ def test_register_unknown_role_rejected():
     reg, errors = ql.validate_registration("superuser", "Хакер Хакеров", "Parol2026", "Parol2026",
                                            username="hacker")
     assert reg is None and errors == ["err_role"]
+
+
+def test_parse_period_and_summary():
+    from datetime import date
+    s, e = ql.parse_period("", "", date(2026, 11, 16))
+    assert (s, e) == (date(2026, 11, 10), date(2026, 11, 16))
+    for bad in (("2026-11-20", "2026-11-01"), ("x", ""), ("2024-01-01", "2026-01-01")):
+        with pytest.raises(ql.QueueError):
+            ql.parse_period(*bad, date(2026, 11, 16))
+    rows = [{"status": "done", "created_at": "2026-11-16 10:00:00", "called_at": "2026-11-16 10:06:00",
+             "finished_at": "2026-11-16 10:10:00", "window_no": 2, "day": "2026-11-16", "name_kk": "A"},
+            {"status": "no_show", "created_at": "2026-11-16 10:01:00", "called_at": None,
+             "finished_at": None, "window_no": None, "day": "2026-11-16", "name_kk": "A"}]
+    rep = ql.summarize_tickets(rows)
+    assert rep["summary"]["total"] == 2 and rep["summary"]["avg_wait"] == 6.0 and rep["summary"]["avg_service"] == 4.0
+    assert [g["key"] for g in rep["by_window"]] == [2, "—"]
+    assert ql.matches("ЗАМ", "Заместитель") and ql.matches("", "x") and not ql.matches("q", None)

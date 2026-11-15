@@ -24,6 +24,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import click
 from flask import (
     Flask,
+    Response,
     abort,
     current_app,
     flash,
@@ -789,7 +790,7 @@ def _register_staff_api_routes(app: Flask) -> None:
 # ---------------------------------------------------------------------------
 # Әкімші панелі (декан және декан орынбасары)
 # ---------------------------------------------------------------------------
-ADMIN_TABS = ("users", "schedule", "calendar", "services", "tickets")
+ADMIN_TABS = ("users", "schedule", "calendar", "services", "tickets", "reports")
 
 
 def _registration_from_form(f) -> tuple:
@@ -812,6 +813,16 @@ def back(tab: str):
     return redirect(url_for("admin_panel", tab=tab))
 
 
+def _admin_lists(conn, role_filter: str | None, q: str) -> tuple:
+    """Іздеу сұранысы бойынша сүзілген пайдаланушылар (қызметтерімен) және бүгінгі талондар."""
+    users = [u for u in repo.list_users(conn, role_filter)
+             if ql.matches(q, u["full_name"], u["username"], u["group_name"])]
+    user_services = {u["id"]: repo.user_service_ids(conn, u["id"]) for u in users}
+    tickets = [tk for tk in repo.tickets_for_day(conn, now())
+               if ql.matches(q, tk["number"], tk["full_name"], tk["group_name"])]
+    return users, user_services, tickets
+
+
 def _register_admin_routes(app: Flask) -> None:
 
     @app.get("/admin")
@@ -824,13 +835,13 @@ def _register_admin_routes(app: Flask) -> None:
         role_filter = request.args.get("role")
         if role_filter not in ql.ROLES:
             role_filter = None
-        users = repo.list_users(conn, role_filter)
-        user_services = {u["id"]: repo.user_service_ids(conn, u["id"]) for u in users}
+        q = request.args.get("q", "").strip()
+        users, user_services, tickets = _admin_lists(conn, role_filter, q)
         return render_template(
-            "admin.html", tab=tab, role_filter=role_filter, users=users,
+            "admin.html", tab=tab, role_filter=role_filter, users=users, q=q,
             user_services=user_services, pending=repo.count_pending(conn),
             services=repo.list_services(conn, active_only=False),
-            tickets=repo.tickets_for_day(conn, now()), statuses=repo.ALL_STATUSES,
+            tickets=tickets, statuses=repo.ALL_STATUSES, report=_report_context(tab),
             stats=repo.stats_today(conn, now()),
             sched_form=ql.schedule_to_dict(schedule()),
             announcements=repo.list_announcements(conn, now()),
@@ -840,6 +851,66 @@ def _register_admin_routes(app: Flask) -> None:
             assignable_roles=[r for r in ql.ROLES
                               if ql.can_manage_user(current_user()["role"], r, r)])
 
+
+
+def _report_period() -> tuple[date, date]:
+    """Сұраудағы есеп кезеңі; қате болса — хабар шығарып, соңғы 7 күн."""
+    try:
+        return ql.parse_period(request.args.get("start", ""), request.args.get("end", ""), now().date())
+    except ql.QueueError as e:
+        flash_error(e)
+        return ql.parse_period("", "", now().date())
+
+
+def _report_context(tab: str) -> dict | None:
+    if tab != "reports":
+        return None
+    start, end = _report_period()
+    rows = repo.tickets_between(db(), start.isoformat(), end.isoformat())
+    return dict(ql.summarize_tickets(rows, "name_" + lang()), start=start.isoformat(), end=end.isoformat())
+
+
+def _csv_minutes(a, b):
+    m = ql.minutes_between(a, b)
+    return "" if m is None else round(m, 1)
+
+
+def _report_csv(rows: list[dict]) -> str:
+    """Excel ашатын CSV: UTF-8 BOM, «;» бөлгіш."""
+    import csv
+    import io
+    buf = io.StringIO()
+    buf.write("\ufeff")
+    w = csv.writer(buf, delimiter=";")
+    w.writerow([t(k) for k in ("date", "board_ticket", "service", "status", "student", "group", "window",
+                               "created", "rep_called", "rep_finished", "rep_wait", "rep_service_time")])
+    for r in rows:
+        w.writerow([r["day"], r["number"], r["name_" + lang()], t("st_" + r["status"]), r["full_name"],
+                    r["group_name"], r["window_no"] or "", r["created_at"][11:16],
+                    (r["called_at"] or "")[11:16], (r["finished_at"] or "")[11:16],
+                    _csv_minutes(r["created_at"], r["called_at"]),
+                    _csv_minutes(r["called_at"], r["finished_at"])])
+    return buf.getvalue()
+
+
+def _register_report_routes(app: Flask) -> None:
+    @app.get("/admin/reports.csv")
+    @role_required(*ql.MANAGER_ROLES)
+    def admin_reports_csv():
+        start, end = _report_period()
+        rows = repo.tickets_between(db(), start.isoformat(), end.isoformat())
+        name = f"dekanat-report-{start:%Y%m%d}-{end:%Y%m%d}.csv"
+        return Response(_report_csv(rows), mimetype="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+    @app.get("/admin/backup")
+    @role_required(ql.ADMIN)
+    def admin_backup():
+        """Дерекқордың резервтік көшірмесін жүктеу (тек администратор)."""
+        repo.log(db(), current_user()["id"], "backup", "", now())
+        name = f"dekanat-{now():%Y%m%d-%H%M}.db"
+        return Response(repo.backup_bytes(db()), mimetype="application/octet-stream",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 def _register_manage_api_routes(app: Flask) -> None:
@@ -1074,6 +1145,7 @@ ROUTE_GROUPS = (
     _register_admin_ticket_routes,
     _register_avatar_view_routes,
     _register_admin_announcement_routes,
+    _register_report_routes,
     _register_cli,
 )
 

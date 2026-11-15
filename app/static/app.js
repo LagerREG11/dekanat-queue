@@ -92,7 +92,7 @@
 
   // ---------- Талон беті ----------
   if (page === "ticket") {
-    let lastStatus = null, lastRecall = null;
+    let lastStatus = null, lastRecall = null, soonShown = false;
     poll(body.dataset.api, function (d) {
       const st = document.getElementById("t-status");
       st.textContent = d.status_text;
@@ -103,6 +103,13 @@
       document.getElementById("called-box").hidden = d.status !== "called";
       document.getElementById("t-late").hidden = !d.late;
       document.getElementById("ticket-card").classList.toggle("is-called", d.status === "called");
+      // Алдыңда 2 не одан аз адам қалғанда — бір рет ескерту (дыбыс + діріл)
+      const soon = document.getElementById("t-soon");
+      const isSoon = d.status === "waiting" && d.ahead <= 2;
+      soon.hidden = !isSoon;
+      if (isSoon) soon.textContent = body.dataset.soon.replace("{n}", d.ahead);
+      if (isSoon && !soonShown && lastStatus !== null) beep();
+      soonShown = isSoon;
       if (d.status === "called" && (lastStatus !== "called" || lastRecall !== d.recall)) beep();
       if (lastStatus && lastStatus !== d.status && ["done", "no_show", "cancelled"].indexOf(d.status) >= 0) {
         window.location.reload();
@@ -116,6 +123,35 @@
     const clock = document.getElementById("clock");
     function updateClock() { clock.textContent = new Date().toLocaleTimeString().slice(0, 5); }
     updateClock(); setInterval(updateClock, 10000);
+
+    // Дауыспен хабарлау: браузер дыбысты тек батырма басылғаннан кейін рұқсат етеді
+    let voiceOn = false;
+    const soundBtn = document.getElementById("sound-toggle");
+    function say(text, langCode) {
+      if (!voiceOn || !window.speechSynthesis) return;
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = langCode;
+      u.rate = 0.9;
+      window.speechSynthesis.speak(u);
+    }
+    function spokenNumber(num) {
+      const m = /^([^-]+)-0*(\d+)$/.exec(num);
+      return m ? m[1] + " " + m[2] : num;
+    }
+    function announce(c) {
+      const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+      const useKk = body.dataset.lang === "kk" && voices.some(function (v) { return /^kk/i.test(v.lang); });
+      const tpl = useKk ? body.dataset.sayKk : body.dataset.sayRu;
+      say(tpl.replace("{n}", spokenNumber(c.number)).replace("{w}", c.window_no), useKk ? "kk-KZ" : "ru-RU");
+    }
+    if (soundBtn) {
+      soundBtn.addEventListener("click", function () {
+        voiceOn = !voiceOn;
+        soundBtn.setAttribute("aria-pressed", voiceOn ? "true" : "false");
+        soundBtn.textContent = voiceOn ? body.dataset.soundActive : body.dataset.soundOn;
+        say(" ", "ru-RU");
+      });
+    }
 
     let lastTop = null;
     poll(body.dataset.api, function (d) {
@@ -131,7 +167,7 @@
         called.appendChild(tr);
       });
       const top = d.called.length ? d.called[0].number + ":" + d.called[0].recall_count : null;
-      if (top && lastTop !== null && top !== lastTop) beep();
+      if (top && lastTop !== null && top !== lastTop) { beep(); announce(d.called[0]); }
       lastTop = top;
 
       const queue = document.getElementById("queue-list");
