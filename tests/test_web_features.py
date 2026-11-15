@@ -194,3 +194,9 @@ def test_student_cabinet_has_no_priority_checkbox(client):
     client.post("/student/ticket", data={"service_id": "1", "priority": "1"})
     assert client.application.extensions["db"].execute(
         "SELECT priority FROM tickets ORDER BY id DESC LIMIT 1").fetchone()[0] == 0
+
+
+def test_no_login_hint_and_no_course_project_note(client):
+    """Кіру бетіндегі ескерту мен төменгі бөліктегі «Курстық жоба · 5-нұсқа» алынып тасталды."""
+    html = client.get("/login").get_data(as_text=True)
+    assert "таңдаған логиніңізді" not in html and "Курстық жоба" not in html
