@@ -66,7 +66,6 @@ def _default_config() -> dict:
         "LOGIN_LIMIT": 10,          # бір IP-ден минутына неше кіру әрекеті
         "NOW": _local_clock(os.environ.get("APP_TIMEZONE", DEFAULT_TIMEZONE)),  # тесттерде ауыстырылады
         "PUBLIC_URL": os.environ.get("PUBLIC_URL", ""),  # QR-кодтағы мекенжай (телефондар үшін)
-        "SHOW_DEMO_ACCOUNTS": os.environ.get("SHOW_DEMO_ACCOUNTS", "1") != "0",  # хостингте 0
         "MAX_CONTENT_LENGTH": 3 * 1024 * 1024,  # сұрау көлемі (сурет жүктеу үшін) 3 МБ-тан аспайды
         "TESTING": False,
     }
@@ -350,7 +349,6 @@ def _register_helpers(app: Flask) -> None:
         return {"t": t, "lang": lang(), "languages": LANGUAGES, "csrf_token": csrf_token,
                 "public_url": public_url,
                 "demo": not app.config["CHECK_HOURS"], "user": user,
-                "show_demo_accounts": app.config["SHOW_DEMO_ACCOUNTS"],
                 "role_home": ROLE_HOME, "roles": ql.ROLES, "sched": schedule_info,
                 "notices": notices,
                 "manager_roles": ql.MANAGER_ROLES, "staff_roles": ql.STAFF_ROLES}

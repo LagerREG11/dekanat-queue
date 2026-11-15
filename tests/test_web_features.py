@@ -256,3 +256,9 @@ def test_board_voice_and_ticket_soon_alert(client):
     r = client.post("/student/ticket", data={"service_id": "1"})
     page = client.get(r.headers["Location"]).get_data(as_text=True)
     assert 'id="t-soon"' in page and "Кезегіңіз жақындады" in page and "data-soon=" in page
+
+
+def test_login_page_has_no_demo_accounts(client):
+    """Кіру бетінде демо-аккаунттар мен құпиясөздер көрсетілмейді."""
+    html = client.get("/login").get_data(as_text=True)
+    assert "Admin2026" not in html and "Демо-аккаунттар" not in html
