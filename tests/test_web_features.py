@@ -64,7 +64,7 @@ def test_staff_break_flow(client):
     login(client, "dekanat", "dekanat1", "Dekanat2026")
     html = client.post("/dekanat/break", follow_redirects=True).get_data(as_text=True)
     assert "Үзіліс басталды" in html and "Жұмысқа оралу" in html
-    assert client.get("/api/board").get_json()["windows"] == [{"window_no": 2, "on_break": True}]
+    assert client.get("/api/board").get_json()["windows"] == [{"window_no": "2", "on_break": True}]
     html = client.post("/dekanat/next", follow_redirects=True).get_data(as_text=True)
     assert "Сіз үзілістесіз" in html
     client.post("/dekanat/break")
@@ -221,7 +221,7 @@ def test_reports_tab_and_csv_export(client, clock):
     clock.advance(4)
     client.post("/dekanat/ticket/1/done")
     html = client.get("/admin?tab=reports").get_data(as_text=True)
-    assert "Кезеңдегі есеп" in html and "Қызметтер бойынша" in html and "Терезелер бойынша" in html
+    assert "Кезеңдегі есеп" in html and "Қызметтер бойынша" in html and "Аудиториялар бойынша" in html
     r = client.get("/admin/reports.csv?start=2026-11-10&end=2026-11-16")
     assert r.status_code == 200 and "attachment" in r.headers["Content-Disposition"]
     text = r.get_data(as_text=True)
@@ -251,7 +251,7 @@ def test_admin_search_users_and_tickets(client):
 
 def test_board_voice_and_ticket_soon_alert(client):
     html = client.get("/board").get_data(as_text=True)
-    assert 'id="sound-toggle"' in html and "data-say-ru=" in html and "Пройдите к окну" in html
+    assert 'id="sound-toggle"' in html and "data-say-ru=" in html and "Пройдите в аудиторию" in html
     client.post("/login", data={"username": "030512501238", "password": "Student2026"})
     r = client.post("/student/ticket", data={"service_id": "1"})
     page = client.get(r.headers["Location"]).get_data(as_text=True)
@@ -262,3 +262,29 @@ def test_login_page_has_no_demo_accounts(client):
     """Кіру бетінде демо-аккаунттар мен құпиясөздер көрсетілмейді."""
     html = client.get("/login").get_data(as_text=True)
     assert "Admin2026" not in html and "Демо-аккаунттар" not in html
+
+
+def test_admin_new_account_form_has_no_iin_and_creates_student_by_login(client):
+    client.post("/login", data={"username": "admin", "password": "Admin2026"})
+    html = client.get("/admin?tab=users").get_data(as_text=True)
+    assert 'name="student_id"' not in html and "ЖСН (ИИН)" not in html
+    client.post("/admin/users/new", data={"role": "student", "full_name": "Бегайдаров Темірлан",
+                                          "username": "Begaydarovv", "password": "Temirlan#2026"})
+    client.post("/logout")
+    r = client.post("/login", data={"username": "begaydarovv", "password": "Temirlan#2026"})
+    assert r.status_code == 302 and r.headers["Location"].endswith("/student")
+
+
+def test_staff_sets_own_auditorium_in_profile(client):
+    """Декан өз аудиториясын профильде жазады (мысалы, 214А); таблода және панельде көрсетіледі."""
+    client.post("/login", data={"username": "dekanat1", "password": "Dekanat2026"})
+    html = client.get("/profile").get_data(as_text=True)
+    assert 'name="window_no"' in html and "Аудитория" in html
+    client.post("/profile", data={"action": "info", "window_no": "214А", "phone": "", "gender": "", "email": ""})
+    assert "214А" in client.get("/profile").get_data(as_text=True)
+    assert "Аудитория 214А" in client.get("/dekanat").get_data(as_text=True)
+    bad = client.post("/profile", data={"action": "info", "window_no": "<b>x</b>", "phone": "", "gender": "", "email": ""})
+    assert "Аудитория: 1–20 таңба" in bad.get_data(as_text=True)
+    client.post("/logout")
+    client.post("/login", data={"username": "030512501238", "password": "Student2026"})
+    assert 'name="window_no"' not in client.get("/profile").get_data(as_text=True)

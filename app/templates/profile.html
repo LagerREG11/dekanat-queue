@@ -51,6 +51,11 @@
         <input id="full_name" name="full_name" required maxlength="80" autocomplete="name"
                placeholder="{{ t('f_name_ph') }}" value="{{ form.get('full_name', user.full_name) }}">
       {% endif %}
+      {% if user.role != 'student' %}
+        <label for="window_no">{{ t('window') }}</label>
+        <input id="window_no" name="window_no" maxlength="20" placeholder="305"
+               value="{{ form.get('window_no', user.window_no or '') }}">
+      {% endif %}
       {% if user.role == 'student' %}
         <label for="group_name">{{ t('group') }}</label>
         <input id="group_name" name="group_name" maxlength="20"

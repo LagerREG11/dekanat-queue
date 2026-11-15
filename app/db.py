@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS users (
     role          TEXT    NOT NULL CHECK (role IN ('student','dekanat','deputy','admin')),
     student_id    TEXT    UNIQUE,                  -- студенттің ЖСН-і (ескі аккаунттарда — студенттік ID)
     group_name    TEXT    NOT NULL DEFAULT '',
-    window_no     INTEGER CHECK (window_no IS NULL OR window_no > 0),
+    window_no     TEXT,                            -- қызметкердің аудиториясы (мысалы, 305 не 214А)
     is_active     INTEGER NOT NULL DEFAULT 1,      -- 0 = растауды күтуде / бұғатталған
     on_duty       INTEGER NOT NULL DEFAULT 0,      -- терезе ашық па
     on_break      INTEGER NOT NULL DEFAULT 0,      -- қызметкер үзілісте ме
@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS tickets (
                  CHECK (status IN ('waiting','called','done','no_show','cancelled')),
     token        TEXT    NOT NULL UNIQUE,          -- талон бетіне жеке сілтеме
     operator_id  INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    window_no    INTEGER,
+    window_no    TEXT,                     -- шақырылған аудитория
     recall_count INTEGER NOT NULL DEFAULT 0,
     created_at   TEXT    NOT NULL,
     called_at    TEXT,
@@ -512,6 +512,8 @@ def update_profile(conn, user_id: int, data: dict, now: datetime) -> None:
         conn.execute("UPDATE users SET full_name=? WHERE id=?", (data["full_name"], user_id))
     if "group_name" in data:
         conn.execute("UPDATE users SET group_name=? WHERE id=?", (data["group_name"], user_id))
+    if "window_no" in data:  # қызметкер өз аудиториясын жазады
+        conn.execute("UPDATE users SET window_no=? WHERE id=?", (data["window_no"], user_id))
     log(conn, user_id, "profile", "", now)
 
 
@@ -583,12 +585,7 @@ def admin_reset_password(conn, admin_id: int, user_id: int, new: str, now: datet
 def admin_update_staff(conn, admin_id: int, user_id: int, window_no, service_ids,
                        now: datetime) -> None:
     target = _managed_target(conn, admin_id, user_id)
-    try:
-        window = int(window_no)
-        if window < 1 or window > 99:
-            raise ValueError
-    except (TypeError, ValueError):
-        raise ql.QueueError("err_window")
+    window = ql.validate_room(window_no)
     valid = {s["id"] for s in list_services(conn, active_only=False)}
     ids = {int(i) for i in service_ids if str(i).isdigit() and int(i) in valid}
     conn.execute("UPDATE users SET window_no=? WHERE id=?", (window, user_id))

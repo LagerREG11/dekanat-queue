@@ -246,7 +246,7 @@ def test_full_dekanat_flow(client, clock):
     clock.advance(3)
     assert "A-001" in client.post("/dekanat/next", follow_redirects=True).get_data(as_text=True)
     data = client.get(f"/api/ticket/{token}").get_json()
-    assert data["status"] == "called" and data["window"] == 2
+    assert data["status"] == "called" and data["window"] == "2"
     assert client.get("/api/board").get_json()["called"][0]["number"] == "A-001"
     ticket_id = re.search(r"/dekanat/ticket/(\d+)/done",
                           client.get("/dekanat").get_data(as_text=True)).group(1)
@@ -303,7 +303,7 @@ def test_admin_creates_user(client, app):
                                           "window_no": "4"})
     row = app.extensions["db"].execute(
         "SELECT role, window_no, is_active FROM users WHERE username='newone'").fetchone()
-    assert tuple(row) == ("dekanat", 4, 1)
+    assert tuple(row) == ("dekanat", "4", 1)
 
 
 def test_admin_fixes_ticket_and_audit(client, app):

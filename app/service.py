@@ -713,6 +713,19 @@ def validate_group(group_name: str, errors: list[str] | None = None) -> str:
     return group_name
 
 
+ROOM_RE = re.compile(r"^[0-9A-Za-zА-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүҺһІі\-/ ]{1,20}$")
+
+
+def validate_room(value) -> str | None:
+    """Аудитория (кабинет) атауы: бос болса — None, әйтпесе 1–20 таңба, мысалы «305» не «214А»."""
+    room = " ".join(str(value or "").split())
+    if not room:
+        return None
+    if not ROOM_RE.match(room):
+        raise QueueError("err_window")
+    return room
+
+
 def validate_full_name(full_name: str) -> str:
     """Аты-жөнін тексереді (тіркелудегі ереже бойынша)."""
     full_name = " ".join((full_name or "").split())

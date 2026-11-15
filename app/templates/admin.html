@@ -72,7 +72,7 @@
         {% if u.role in staff_roles %}
         <form method="post" action="{{ url_for('admin_user_action', user_id=u.id, action='staff') }}" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <label class="small">{{ t('window') }} <input name="window_no" type="number" min="1" max="99" value="{{ u.window_no or '' }}" class="w-num"></label>
+          <label class="small">{{ t('window') }} <input name="window_no" type="text" maxlength="20" value="{{ u.window_no or '' }}" class="w-num"></label>
           {% for s in services %}
             <label class="small"><input type="checkbox" name="services" value="{{ s.id }}" {{ 'checked' if s.id in user_services[u.id] }}> {{ s.code }}</label>
           {% endfor %}
@@ -99,10 +99,9 @@
     <label>{{ t('role') }}
       <select name="role">{% for r in assignable_roles %}<option value="{{ r }}">{{ t('role_' + r) }}</option>{% endfor %}</select></label>
     <label>{{ t('f_name') }} <input name="full_name" maxlength="80" required></label>
-    <label>{{ t('f_username') }} <span class="hint">{{ t('for_staff') }}</span><input name="username" maxlength="30"></label>
-    <label>{{ t('f_student_id') }} <span class="hint">{{ t('for_students') }}</span><input name="student_id" maxlength="12"></label>
+    <label>{{ t('f_username') }} <input name="username" maxlength="30" required></label>
     <label>{{ t('group') }} <span class="hint">{{ t('for_students') }}</span><input name="group_name" maxlength="20"></label>
-    <label>{{ t('window') }} <input name="window_no" type="number" min="1" max="99"></label>
+    <label>{{ t('window') }} <input name="window_no" type="text" maxlength="20" placeholder="305"></label>
     <label>{{ t('f_password') }} <input name="password" type="text" required autocomplete="off"></label>
     <div><button class="btn btn-primary" type="submit">{{ t('create') }}</button></div>
   </form>

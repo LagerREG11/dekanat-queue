@@ -152,9 +152,11 @@ def test_admin_update_staff(conn):
     admin = uid(conn, "admin")
     d = uid(conn, "dekanat1")
     repo.admin_update_staff(conn, admin, d, "7", ["1", "3", "999", "x"], MONDAY_10)
-    assert repo.get_user(conn, d)["window_no"] == 7
+    assert repo.get_user(conn, d)["window_no"] == "7"
     assert repo.user_service_ids(conn, d) == {1, 3}  # жоқ және қате id-лер еленбейді
-    for bad in ("0", "100", "abc", None):
+    repo.admin_update_staff(conn, admin, d, "214А", [], MONDAY_10)   # аудитория әріппен де болады
+    assert repo.get_user(conn, d)["window_no"] == "214А"
+    for bad in ("<script>", "a" * 21, "305;drop"):
         with pytest.raises(ql.QueueError):
             repo.admin_update_staff(conn, admin, d, bad, [], MONDAY_10)
 
@@ -298,7 +300,7 @@ def test_operator_flow_call_done(conn):
     t = repo.create_ticket(conn, student(conn), 1, MONDAY_10)
     called = repo.call_next(conn, op, MONDAY_10 + timedelta(minutes=2))
     assert called["number"] == t["number"] and called["status"] == "called"
-    assert called["window_no"] == 2
+    assert called["window_no"] == "2"
     repo.finish_ticket(conn, op, called["id"], ql.DONE, MONDAY_10 + timedelta(minutes=7))
     assert repo.get_ticket(conn, called["id"])["status"] == "done"
     assert repo.recent_durations(conn, 1) == [5.0]
@@ -424,7 +426,7 @@ def test_board_data(conn):
     repo.create_ticket(conn, student(conn, "010923610006"), 1, MONDAY_10)
     repo.call_next(conn, op, MONDAY_10)
     data = repo.board_data(conn, MONDAY_10)
-    assert data["called"][0]["number"] == "A-001" and data["called"][0]["window_no"] == 2
+    assert data["called"][0]["number"] == "A-001" and data["called"][0]["window_no"] == "2"
     assert data["waiting"] == ["A-002"]
     assert "full_name" not in data["called"][0]
 

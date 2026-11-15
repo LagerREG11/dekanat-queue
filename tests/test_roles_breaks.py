@@ -54,7 +54,7 @@ def test_staff_break_blocks_calls_and_windows(conn):
     with pytest.raises(ql.QueueError) as e:
         repo.call_next(conn, op, MONDAY_10)
     assert e.value.code == "err_on_break"
-    assert {"window_no": 2, "on_break": True} in repo.board_data(conn, MONDAY_10)["windows"]
+    assert {"window_no": "2", "on_break": True} in repo.board_data(conn, MONDAY_10)["windows"]
     repo.set_break(conn, op, False, MONDAY_10)
     assert repo.call_next(conn, op, MONDAY_10) is not None
 
@@ -141,7 +141,7 @@ def test_hierarchy_admin_dekan_deputy_student(conn):
 
 def test_deputy_can_call_students(conn):
     repo.create_ticket(conn, student(conn), 3, MONDAY_10)
-    assert repo.call_next(conn, uid(conn, "zamdekan"), MONDAY_10)["window_no"] == 4
+    assert repo.call_next(conn, uid(conn, "zamdekan"), MONDAY_10)["window_no"] == "4"
 
 
 def test_migration_from_old_schema(tmp_path):

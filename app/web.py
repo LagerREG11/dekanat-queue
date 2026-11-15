@@ -576,6 +576,8 @@ def _register_profile_routes(app: Flask) -> None:
                         data["full_name"] = ql.validate_full_name(f.get("full_name"))
                     if user["role"] == ql.STUDENT and "group_name" in f:
                         data["group_name"] = ql.validate_group(f.get("group_name"))
+                    if user["role"] in ql.STAFF_ROLES and "window_no" in f:
+                        data["window_no"] = ql.validate_room(f.get("window_no"))
                     repo.update_profile(db(), user["id"], data, now())
                     flash("msg_profile_saved", "ok")
                 else:
@@ -795,8 +797,9 @@ def _registration_from_form(f) -> tuple:
     """Әкімші панеліндегі «Жаңа аккаунт» формасын тексереді: (reg, errors)."""
     role = f.get("role")
     if role == ql.STUDENT:
+        # Студентке де логин беріледі (ЖСН өрісі алынды); тобы міндетті емес
         return ql.validate_registration(ql.STUDENT, f.get("full_name"), f.get("password"), None,
-                                        f.get("student_id"), f.get("group_name"))
+                                        f.get("student_id"), f.get("group_name"), f.get("username"))
     reg, errors = ql.validate_registration(ql.DEKANAT, f.get("full_name"), f.get("password"),
                                            None, username=f.get("username"))
     if reg and role in ql.STAFF_ROLES:
@@ -937,11 +940,11 @@ def _register_admin_user_routes(app: Flask) -> None:
                 for err in errors:
                     flash(err, "error")
                 return back("users")
-            window = f.get("window_no") or None
+            window = ql.validate_room(f.get("window_no"))
             repo.create_user(db(), reg.username, reg.password, reg.full_name, reg.role,
                                    now=now(), student_id=reg.student_id,
                                    group_name=reg.group_name,
-                                   window_no=int(window) if window and window.isdigit() else None)
+                                   window_no=window)
             repo.log(db(), current_user()["id"], "create_user", f"{reg.role}:{reg.username}", now())
             flash("msg_saved", "ok")
         except ql.QueueError as e:
