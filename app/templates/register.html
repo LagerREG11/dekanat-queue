@@ -10,7 +10,7 @@
   </div>
 
   {% if kind != 'student' %}
-    <div class="alert alert-warn">{{ t('staff_needs_approval') }}{% if kind == 'admin' %} {{ t('admin_needs_admin') }}{% endif %}</div>
+    <div class="alert alert-warn">{{ t('staff_needs_approval') }}{% if kind == 'admin' %} {{ t('admin_needs_admin') }}{% elif kind == 'dekanat' %} {{ t('dekan_needs_admin') }}{% endif %}</div>
   {% endif %}
 
   <form method="post" class="form" novalidate>

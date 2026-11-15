@@ -491,9 +491,11 @@ def force_set_password(conn, username: str, password: str, now: datetime) -> Non
 
 
 def update_profile(conn, user_id: int, data: dict, now: datetime) -> None:
-    """Профиль: телефон, жыныс, e-mail (ql.validate_profile тексерген деректер)."""
+    """Профиль: телефон, жыныс, e-mail, ал администраторда аты-жөні де (тексерілген деректер)."""
     conn.execute("UPDATE users SET phone=?, gender=?, email=? WHERE id=?",
                  (data["phone"], data["gender"], data["email"], user_id))
+    if data.get("full_name"):
+        conn.execute("UPDATE users SET full_name=? WHERE id=?", (data["full_name"], user_id))
     log(conn, user_id, "profile", "", now)
 
 

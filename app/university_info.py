@@ -17,8 +17,8 @@
 OFFICIAL_SITE = "https://korkyt.edu.kz"
 
 CONTACTS = {
-    "phone": "+7 7242 26-27-14",
-    "admission_phone": "+7 7242 71-07-45",
+    "phone": "8 777 777 77 77",
+    "admission_phone": "8 777 777 77 77",
     "email": "ksu@korkyt.kz",
     "main_building": {"kk": "Қызылорда қ., Әйтеке би к-сі, 29А (бас корпус, ректорат)",
                       "ru": "г. Кызылорда, ул. Айтеке би, 29А (главный корпус, ректорат)"},

@@ -4,7 +4,7 @@
 
 Үш рөл:
   student  — тіркеледі, кабинетте талон алады, өз талондарын көреді
-  dekanat  — деканат қызметкері: студенттерді шақырады (әкімші растағаннан кейін)
+  dekanat  — декан: студенттерді шақырады, аккаунттарды басқарады (администратордан басқа)
   admin    — әкімші: аккаунттар, қызметтер, талондардағы қателерді түзету, журнал
 """
 from __future__ import annotations
@@ -556,9 +556,10 @@ def _register_auth_routes(app: Flask) -> None:
             f = request.form
             try:
                 if f.get("action") == "info":
-                    repo.update_profile(db(), user["id"],
-                                        ql.validate_profile(f.get("phone"), f.get("gender"), f.get("email")),
-                                        now())
+                    data = ql.validate_profile(f.get("phone"), f.get("gender"), f.get("email"))
+                    if user["role"] == ql.ADMIN:  # аты-жөнін тек администратор өзі өзгертеді
+                        data["full_name"] = ql.validate_full_name(f.get("full_name"))
+                    repo.update_profile(db(), user["id"], data, now())
                     flash("msg_profile_saved", "ok")
                 else:
                     repo.change_password(db(), user["id"], f.get("old_password"),

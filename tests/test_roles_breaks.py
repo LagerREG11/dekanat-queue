@@ -24,9 +24,10 @@ def test_schedule_default_and_save(conn):
     assert any(a["action"] == "schedule" for a in repo.list_audit(conn))
 
 
-def test_schedule_save_forbidden_for_staff(conn):
+def test_schedule_save_rights(conn):
+    repo.save_schedule(conn, uid(conn, "dekanat1"), ql.DEFAULT_SCHEDULE, MONDAY_10)  # декан — болады
     with pytest.raises(ql.QueueError) as e:
-        repo.save_schedule(conn, uid(conn, "dekanat1"), ql.DEFAULT_SCHEDULE, MONDAY_10)
+        repo.save_schedule(conn, student(conn)["id"], ql.DEFAULT_SCHEDULE, MONDAY_10)
     assert e.value.code == "err_forbidden"
 
 
@@ -82,7 +83,7 @@ def test_logout_ends_break(conn):
 
 def test_deputy_does_dean_work(conn):
     deputy = uid(conn, "zamdekan")
-    reg, _ = ql.validate_registration("dekanat", "Жаңа Әдіскер", "Parol2026", "Parol2026", username="newstaff")
+    reg, _ = ql.validate_registration("deputy", "Жаңа Орынбасар", "Parol2026", "Parol2026", username="newstaff")
     new_id = repo.register(conn, reg, MONDAY_10)
     repo.admin_set_active(conn, deputy, new_id, True, MONDAY_10)
     repo.admin_update_staff(conn, deputy, new_id, "5", ["1"], MONDAY_10)
@@ -105,14 +106,37 @@ def test_deputy_cannot_touch_dean(conn):
         assert e.value.code == "err_forbidden"
 
 
-def test_staff_cannot_use_manager_functions(conn):
-    staff = uid(conn, "dekanat1")
-    t = repo.create_ticket(conn, student(conn), 1, MONDAY_10)
-    for fn in (lambda: repo.admin_set_active(conn, staff, uid(conn, "030512501238"), False, MONDAY_10),
-               lambda: repo.admin_set_ticket_status(conn, staff, t["id"], ql.DONE, MONDAY_10),
-               lambda: repo.admin_delete_ticket(conn, staff, t["id"], MONDAY_10)):
+def test_student_cannot_use_manager_functions(conn):
+    st = student(conn)
+    me = st["id"]
+    t = repo.create_ticket(conn, st, 1, MONDAY_10)
+    for fn in (lambda: repo.admin_set_active(conn, me, uid(conn, "dekanat1"), False, MONDAY_10),
+               lambda: repo.admin_set_ticket_status(conn, me, t["id"], ql.DONE, MONDAY_10),
+               lambda: repo.admin_delete_ticket(conn, me, t["id"], MONDAY_10)):
         with pytest.raises(ql.QueueError):
             fn()
+
+
+def test_hierarchy_admin_dekan_deputy_student(conn):
+    """Иерархия: администратор > декан > декан орынбасары > студент."""
+    dekan, deputy, admin = uid(conn, "dekanat1"), uid(conn, "zamdekan"), uid(conn, "admin")
+    # Декан орынбасарын және студентті басқарады, бірақ администраторды — жоқ
+    repo.admin_set_active(conn, dekan, deputy, False, MONDAY_10)
+    repo.admin_set_active(conn, dekan, deputy, True, MONDAY_10)
+    repo.admin_set_active(conn, dekan, uid(conn, "030512501238"), False, MONDAY_10)
+    for fn in (lambda: repo.admin_set_active(conn, dekan, admin, False, MONDAY_10),
+               lambda: repo.admin_set_role(conn, dekan, deputy, "admin", MONDAY_10)):
+        with pytest.raises(ql.QueueError) as e:
+            fn()
+        assert e.value.code == "err_forbidden"
+    # Орынбасар деканның өтінімін растай алмайды — тек администратор
+    reg, _ = ql.validate_registration("dekanat", "Жаңа Декан", "Parol2026", "Parol2026", username="newdekan")
+    new_id = repo.register(conn, reg, MONDAY_10)
+    with pytest.raises(ql.QueueError):
+        repo.admin_set_active(conn, deputy, new_id, True, MONDAY_10)
+    repo.admin_set_active(conn, admin, new_id, True, MONDAY_10)
+    assert repo.get_user(conn, new_id)["is_active"]
+    assert ql.ROLES == ("admin", "dekanat", "deputy", "student")
 
 
 def test_deputy_can_call_students(conn):

@@ -63,11 +63,15 @@ def test_schedule_roundtrip():
 @pytest.mark.parametrize("actor,target,new,ok", [
     (ql.ADMIN, ql.ADMIN, None, True),
     (ql.ADMIN, ql.STUDENT, ql.ADMIN, True),
-    (ql.DEPUTY, ql.DEKANAT, None, True),
+    (ql.DEKANAT, ql.STUDENT, None, True),      # декан студентті, орынбасарды басқарады
+    (ql.DEKANAT, ql.DEPUTY, ql.DEKANAT, True),
+    (ql.DEKANAT, ql.ADMIN, None, False),       # администраторды өзгерте алмайды
+    (ql.DEKANAT, ql.STUDENT, ql.ADMIN, False),  # администратор рөлін бере алмайды
     (ql.DEPUTY, ql.STUDENT, ql.DEPUTY, True),
-    (ql.DEPUTY, ql.ADMIN, None, False),        # деканның аккаунтын өзгерте алмайды
-    (ql.DEPUTY, ql.DEKANAT, ql.ADMIN, False),  # декан рөлін бере алмайды
-    (ql.DEKANAT, ql.STUDENT, None, False),
+    (ql.DEPUTY, ql.DEPUTY, None, True),
+    (ql.DEPUTY, ql.DEKANAT, None, False),      # деканның аккаунтын өзгерте алмайды
+    (ql.DEPUTY, ql.ADMIN, None, False),
+    (ql.DEPUTY, ql.STUDENT, ql.DEKANAT, False),  # декан рөлін бере алмайды
     (ql.STUDENT, ql.STUDENT, None, False),
 ])
 def test_can_manage_user(actor, target, new, ok):

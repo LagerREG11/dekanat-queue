@@ -153,12 +153,12 @@ def test_chatbot_polite_fallback():
 # ---------------- Дерекқор ----------------
 def test_overrides_and_announcements_db(conn):
     admin = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()[0]
-    staff = conn.execute("SELECT id FROM users WHERE username='dekanat1'").fetchone()[0]
+    staff = conn.execute("SELECT id FROM users WHERE role='student'").fetchone()[0]
     o = ql.build_override("2026-11-17", "short", "09:00", "13:00", "Жиналыс")
     repo.save_override(conn, admin, o, MONDAY_10)
     assert repo.get_overrides(conn)[o.day].close_at == time(13, 0)
     with pytest.raises(ql.QueueError):
-        repo.save_override(conn, staff, o, MONDAY_10)          # әдіскерге рұқсат жоқ
+        repo.save_override(conn, staff, o, MONDAY_10)          # студентке рұқсат жоқ
     repo.delete_override(conn, admin, "2026-11-17", MONDAY_10)
     assert repo.get_overrides(conn) == {}
 
@@ -233,7 +233,7 @@ def test_home_calendar_and_service_minutes(client):
     assert "Қараша 2026" in html and 'class="cal-today kind-work"' in html
     assert "cal-past" in html and "Демалыс" in html
     assert "қабылдау ~1 мин" in html and "Өтінішке қол қою" in html
-    assert "+7 7242 71-07-45" in html and "11 700+" in html
+    assert "8 777 777 77 77" in html and "tel:+77777777777" in html and "11 700+" in html
     assert "img/building5.webp" in html
 
 
@@ -250,8 +250,8 @@ def test_manager_announcement_and_short_day_on_all_pages(client):
     assert "декан жиналыста" in client.get("/board").get_data(as_text=True)
 
 
-def test_dekanat_staff_cannot_post_announcement(client):
-    login(client, "dekanat1", "Dekanat2026")
+def test_student_cannot_post_announcement(client):
+    login(client, "030512501238", "Student2026")
     client.post("/admin/announcements/new", data={"text": "Рұқсатсыз хабарландыру"})
     client.post("/logout")
     assert "Рұқсатсыз хабарландыру" not in client.get("/").get_data(as_text=True)
@@ -275,6 +275,26 @@ def test_profile_info_saved(client):
     html = client.post("/profile", data={"action": "info", "phone": "123"}).get_data(as_text=True)
     assert "Телефон нөмірі қате" in html
 
+
+
+def test_admin_edits_full_name_others_cannot(client):
+    """Администратор өз профилінде аты-жөнін, e-mail, жынысын, телефонын өзгерте алады."""
+    login(client, "admin", "Admin2026")
+    html = client.get("/profile").get_data(as_text=True)
+    assert 'name="full_name"' in html
+    client.post("/profile", data={"action": "info", "full_name": "Сейітов Нұрлан Асқарұлы",
+                                  "phone": "8 777 123 45 67", "gender": "male", "email": "admin@korkyt.kz"})
+    html = client.get("/profile").get_data(as_text=True)
+    assert "Сейітов Нұрлан Асқарұлы" in html and "admin@korkyt.kz" in html and "+7 777 123 45 67" in html
+    bad = client.post("/profile", data={"action": "info", "full_name": "1"}).get_data(as_text=True)
+    assert 'class="alert alert-error"' in bad or "alert-error" in bad
+    assert "Сейітов Нұрлан Асқарұлы" in client.get("/profile").get_data(as_text=True)
+    client.post("/logout")
+    # студентке аты-жөнін өзгерту өрісі жоқ, жіберсе де өзгермейді
+    login(client, "030512501238", "Student2026")
+    assert 'name="full_name"' not in client.get("/profile").get_data(as_text=True)
+    client.post("/profile", data={"action": "info", "full_name": "Бөтен Адам Есімі"})
+    assert "Бөтен Адам Есімі" not in client.get("/profile").get_data(as_text=True)
 
 def test_avatar_upload_and_access(client, app):
     login(client, "030512501238", "Student2026")

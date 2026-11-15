@@ -16,25 +16,30 @@ from math import ceil
 # Рөлдер
 # ---------------------------------------------------------------------------
 STUDENT = "student"   # талон алады, өз талондарын көреді
-DEKANAT = "dekanat"   # деканат қызметкері (әдіскер): студенттерді шақырады
-DEPUTY = "deputy"     # декан орынбасары: декан жұмысын атқарады (әкімші аккаунттарынан басқасы)
-ADMIN = "admin"       # декан / әкімші: толық құқық
-ROLES = (STUDENT, DEKANAT, DEPUTY, ADMIN)
-MANAGER_ROLES = (DEPUTY, ADMIN)          # әкімші панеліне кіре алатындар
-STAFF_ROLES = (DEKANAT, DEPUTY, ADMIN)   # студенттерді қабылдай алатындар
+DEKANAT = "dekanat"   # декан: студенттерді шақырады, аккаунттарды басқарады (администратордан басқа)
+DEPUTY = "deputy"     # декан орынбасары: студенттер мен орынбасарлар аккаунттарын басқарады
+ADMIN = "admin"       # администратор: толық құқық
+# Иерархия бойынша (жоғарыдан төмен) — кіру/тіркелу қойындылары да осы ретпен шығады.
+ROLES = (ADMIN, DEKANAT, DEPUTY, STUDENT)
+ROLE_RANK = {ADMIN: 4, DEKANAT: 3, DEPUTY: 2, STUDENT: 1}
+MANAGER_ROLES = (ADMIN, DEKANAT, DEPUTY)   # әкімші панеліне кіре алатындар
+STAFF_ROLES = (ADMIN, DEKANAT, DEPUTY)     # студенттерді қабылдай алатындар
 
 
 def can_manage_user(actor_role: str, target_role: str, new_role: str | None = None) -> bool:
-    """Аккаунтты өзгертуге құқық бар ма?
+    """Аккаунтты өзгертуге құқық бар ма? Иерархия: администратор > декан > орынбасар > студент.
 
-    Декан (admin) — бәрін өзгерте алады. Декан орынбасары — декан аккаунттарын
-    өзгерте алмайды және ешкімге декан рөлін бере алмайды. Басқа рөлдер — ешкімді.
+    Администратор — бәрін өзгерте алады. Декан мен орынбасар — өзінен жоғары тұрған
+    аккаунттарды өзгерте алмайды және өзінен жоғары рөлді бере алмайды. Студент — ешкімді.
     """
     if actor_role == ADMIN:
         return True
-    if actor_role == DEPUTY:
-        return target_role != ADMIN and new_role != ADMIN
-    return False
+    if actor_role not in (DEKANAT, DEPUTY):
+        return False
+    rank = ROLE_RANK[actor_role]
+    if ROLE_RANK.get(target_role, 0) > rank:
+        return False
+    return new_role is None or ROLE_RANK.get(new_role, 99) <= rank
 
 # ---------------------------------------------------------------------------
 # Талон күйлері және рұқсат етілген өтулер (state machine)
@@ -631,6 +636,14 @@ def detect_image_type(data: bytes) -> str:
     if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return "webp"
     raise QueueError("err_avatar_type")
+
+
+def validate_full_name(full_name: str) -> str:
+    """Аты-жөнін тексереді (тіркелудегі ереже бойынша)."""
+    full_name = " ".join((full_name or "").split())
+    if not NAME_RE.match(full_name):
+        raise QueueError("err_name")
+    return full_name
 
 
 def validate_profile(phone: str, gender: str, email: str) -> dict:

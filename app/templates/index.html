@@ -137,16 +137,16 @@
 <section class="box">
   <h2 class="box-title">{{ t('choose_role') }}</h2>
   <ul class="role-cards">
-    <li><b>{{ t('role_student') }}</b><p>{{ t('role_student_desc') }}</p>
-      <div class="links"><a href="{{ url_for('login', role='student') }}">{{ t('nav_login') }}</a> ·
-        <a href="{{ url_for('register', kind='student') }}">{{ t('nav_register') }}</a></div></li>
+    <li><b>{{ t('role_admin') }}</b><p>{{ t('role_admin_desc') }}</p>
+      <div class="links"><a href="{{ url_for('login', role='admin') }}">{{ t('nav_login') }}</a></div></li>
     <li><b>{{ t('role_dekanat') }}</b><p>{{ t('role_dekanat_desc') }}</p>
       <div class="links"><a href="{{ url_for('login', role='dekanat') }}">{{ t('nav_login') }}</a> ·
         <a href="{{ url_for('register', kind='dekanat') }}">{{ t('nav_register') }}</a></div></li>
     <li><b>{{ t('role_deputy') }}</b><p>{{ t('role_deputy_desc') }}</p>
       <div class="links"><a href="{{ url_for('login', role='deputy') }}">{{ t('nav_login') }}</a></div></li>
-    <li><b>{{ t('role_admin') }}</b><p>{{ t('role_admin_desc') }}</p>
-      <div class="links"><a href="{{ url_for('login', role='admin') }}">{{ t('nav_login') }}</a></div></li>
+    <li><b>{{ t('role_student') }}</b><p>{{ t('role_student_desc') }}</p>
+      <div class="links"><a href="{{ url_for('login', role='student') }}">{{ t('nav_login') }}</a> ·
+        <a href="{{ url_for('register', kind='student') }}">{{ t('nav_register') }}</a></div></li>
   </ul>
 </section>
 
@@ -214,8 +214,8 @@
   <h2 class="box-title">{{ t('contacts_title') }}</h2>
   <table class="table contacts-table">
     <tr><td>{{ t('main_building') }}</td><td>{{ uni.contacts.main_building }}</td></tr>
-    <tr><td>{{ t('phone') }}</td><td><a href="tel:+77242262714">{{ uni.contacts.phone }}</a></td></tr>
-    <tr><td>{{ t('admission') }}</td><td><a href="tel:+77242710745">{{ uni.contacts.admission_phone }}</a></td></tr>
+    <tr><td>{{ t('phone') }}</td><td><a href="tel:+77777777777">{{ uni.contacts.phone }}</a></td></tr>
+    <tr><td>{{ t('admission') }}</td><td><a href="tel:+77777777777">{{ uni.contacts.admission_phone }}</a></td></tr>
     <tr><td>E-mail</td><td><a href="mailto:{{ uni.contacts.email }}">{{ uni.contacts.email }}</a></td></tr>
     <tr><td>{{ t('official_site') }}</td><td><a href="{{ uni.site }}" target="_blank" rel="noopener noreferrer">korkyt.edu.kz</a></td></tr>
     <tr><td>{{ t('dekanat_hours') }}</td><td>{{ s.days }}, {{ s.hours }}{% if s.lunch %}; {{ t('lunch_time') | lower }} {{ s.lunch }}{% endif %}</td></tr>

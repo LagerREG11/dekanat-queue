@@ -114,7 +114,7 @@ def test_pages_require_login(client, url):
 
 @pytest.mark.parametrize("role,url,allowed", [
     ("student", "/dekanat", False), ("student", "/admin", False),
-    ("dekanat", "/admin", False), ("dekanat", "/student", False),
+    ("dekanat", "/admin", True), ("dekanat", "/student", False),
     ("admin", "/dekanat", True), ("admin", "/admin", True),
 ])
 def test_role_access(client, role, url, allowed):

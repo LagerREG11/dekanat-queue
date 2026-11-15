@@ -46,6 +46,11 @@
     <form method="post" class="form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="info">
+      {% if user.role == 'admin' %}
+        <label for="full_name">{{ t('f_name') }}</label>
+        <input id="full_name" name="full_name" required maxlength="80" autocomplete="name"
+               placeholder="{{ t('f_name_ph') }}" value="{{ form.get('full_name', user.full_name) }}">
+      {% endif %}
       <label for="phone">{{ t('f_phone') }}</label>
       <input id="phone" name="phone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel"
              placeholder="{{ t('f_phone_ph') }}" value="{{ form.get('phone', user.phone) }}">
