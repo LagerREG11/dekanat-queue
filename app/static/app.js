@@ -122,9 +122,20 @@
       if (top && lastTop !== null && top !== lastTop) beep();
       lastTop = top;
 
-      const waiting = document.getElementById("waiting-list");
-      waiting.replaceChildren();
-      d.waiting.forEach(function (n) { waiting.appendChild(el("li", n)); });
+      const queue = document.getElementById("queue-list");
+      const qd = d.queue || [];
+      document.getElementById("queue-count").textContent = String(qd.length);
+      queue.replaceChildren();
+      if (!qd.length) {
+        const tr = el("tr"); const td = el("td", body.dataset.queueEmpty, "empty");
+        td.colSpan = 3; tr.appendChild(td); queue.appendChild(tr);
+      }
+      qd.forEach(function (q, i) {
+        const tr = el("tr", undefined, i === 0 ? "next-up" : "");
+        tr.append(el("td", String(q.pos)), el("td", q.number),
+                  el("td", q["name_" + body.dataset.lang] || q.name_kk));
+        queue.appendChild(tr);
+      });
 
       const windows = document.getElementById("windows-list");
       windows.replaceChildren();

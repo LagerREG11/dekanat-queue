@@ -63,7 +63,8 @@ def test_queue_reply_empty():
 
 
 def test_address_and_contacts_use_ctx():
-    assert "Абай даңғылы, 66А" in chatbot.answer("деканат қайда", "kk", CTX)["reply"]
+    r = chatbot.answer("деканат қайда", "kk", CTX)["reply"]
+    assert "2-қабат" in r and "оң жақ блоктың" in r and "Абай даңғылы, 66А" in r
     assert "ksu@korkyt.kz" in chatbot.answer("контакты, телефон", "ru", CTX)["reply"]
 
 

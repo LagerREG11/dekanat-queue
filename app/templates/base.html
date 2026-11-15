@@ -8,7 +8,7 @@
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}{{ t('app_title') }}{% endblock %} · {{ t('university') }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link rel="icon" href="{{ url_for('static', filename='logo.svg') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
 </head>
 {% set ep = request.endpoint %}
 <body class="{% block body_class %}{% endblock %}" data-yes="{{ t('confirm_yes') }}" data-no="{{ t('confirm_no') }}" {% block body_attrs %}{% endblock %}>
@@ -31,7 +31,7 @@
 <header class="header">
   <div class="container">
     <a class="brand" href="{{ url_for('index') }}">
-      <img src="{{ url_for('static', filename='logo.svg') }}" alt="" width="48" height="48">
+      <img src="{{ url_for('static', filename='logo.png') }}" alt="" width="52" height="52">
       <span>
         <span class="brand-name">{{ t('app_title') }}</span><br>
         <span class="brand-sub">{{ t('university') }}</span>

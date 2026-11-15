@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ t('board_title') }}{% endblock %}
-{% block body_attrs %}data-page="board" data-api="{{ url_for('api_board') }}" data-empty="{{ t('board_empty') }}" data-break="{{ t('board_on_break') }}" data-working="{{ t('board_working') }}" data-window="{{ t('window') }}"{% endblock %}
+{% block body_attrs %}data-page="board" data-api="{{ url_for('api_board') }}" data-empty="{{ t('board_empty') }}" data-break="{{ t('board_on_break') }}" data-working="{{ t('board_working') }}" data-window="{{ t('window') }}" data-lang="{{ lang }}" data-queue-empty="{{ t('board_queue_empty') }}"{% endblock %}
 {% block content %}
 <div class="board-head">
   <h1>{{ t('board_title') }}</h1>
@@ -24,10 +24,19 @@
 
   <div>
     <section class="box">
-      <h2 class="box-title">{{ t('board_next') }}</h2>
-      <ul class="next-list" id="waiting-list">
-        {% for n in data.waiting %}<li>{{ n }}</li>{% endfor %}
-      </ul>
+      <h2 class="box-title">{{ t('board_next') }} <span class="queue-count" id="queue-count">{{ data.queue | length }}</span></h2>
+      <div class="queue-scroll">
+        <table class="board-table queue-table">
+          <thead><tr><th>№</th><th>{{ t('board_ticket') }}</th><th>{{ t('board_service') }}</th></tr></thead>
+          <tbody id="queue-list">
+            {% for q in data.queue %}
+              <tr class="{{ 'next-up' if loop.first }}"><td>{{ q.pos }}</td><td>{{ q.number }}</td><td>{{ q['name_' + lang] }}</td></tr>
+            {% else %}
+              <tr><td class="empty" colspan="3">{{ t('board_queue_empty') }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section class="box">

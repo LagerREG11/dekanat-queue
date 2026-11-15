@@ -428,6 +428,17 @@ def test_board_data(conn):
     assert "full_name" not in data["called"][0]
 
 
+def test_board_shows_whole_queue_in_order(conn):
+    """Табло барлық күтіп тұрған талондарды (12-ден көп те) реті мен қызметімен көрсетеді."""
+    for i in range(15):
+        repo.create_ticket(conn, student(conn, make_iin(200 + i)), 1 + i % 2, MONDAY_10)
+    q = repo.board_data(conn, MONDAY_10)["queue"]
+    assert len(q) == 15 and [x["pos"] for x in q] == list(range(1, 16))
+    assert q[0]["number"] == "A-001" and q[1]["number"].startswith("B-")
+    assert q[0]["name_kk"] and q[0]["name_ru"]
+    assert "full_name" not in q[0]
+
+
 def test_sql_injection_is_harmless(conn):
     evil = "' OR 1=1 --"
     assert repo.authenticate(conn, evil, evil)[0] is None

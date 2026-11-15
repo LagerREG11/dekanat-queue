@@ -171,7 +171,7 @@ def test_register_staff_pending_until_admin_approves(client, app):
 def test_admin_registration_waits_for_admin_approval(client, app):
     """Әкімші болып тіркелуге болады, бірақ қазіргі әкімші растамайынша кіре алмайды."""
     html = client.get("/register?kind=admin").get_data(as_text=True)
-    assert "тек қазіргі әкімші растай алады" in html
+    assert "тек қазіргі администратор растай алады" in html
     client.post("/register", data={"kind": "admin", "full_name": "Жаңа Декан",
                                    "username": "newdean", "password": "Parol2026",
                                    "password2": "Parol2026"})

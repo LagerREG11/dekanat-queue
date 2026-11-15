@@ -900,13 +900,16 @@ def board_data(conn, now: datetime) -> dict:
         "SELECT number, window_no, recall_count, called_at FROM tickets "
         "WHERE day=? AND status='called' ORDER BY called_at DESC, id DESC", (day,)).fetchall()
     waiting = conn.execute(
-        "SELECT number FROM tickets WHERE day=? AND status='waiting' "
-        "ORDER BY priority DESC, created_at, id LIMIT 12", (day,)).fetchall()
+        "SELECT t.number, s.name_kk, s.name_ru FROM tickets t JOIN services s ON s.id = t.service_id "
+        "WHERE t.day=? AND t.status='waiting' "
+        "ORDER BY t.priority DESC, t.created_at, t.id", (day,)).fetchall()
     windows = conn.execute(
         "SELECT window_no, on_break FROM users WHERE on_duty=1 AND is_active=1 "
         "AND window_no IS NOT NULL ORDER BY window_no").fetchall()
     return {"called": [dict(r) for r in called],
             "waiting": [r["number"] for r in waiting],
+            "queue": [{"pos": i, "number": r["number"], "name_kk": r["name_kk"], "name_ru": r["name_ru"]}
+                      for i, r in enumerate(waiting, 1)],
             "windows": [{"window_no": w["window_no"], "on_break": bool(w["on_break"])} for w in windows]}
 
 

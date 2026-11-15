@@ -511,3 +511,13 @@ table.calendar { width: 100%; border-collapse: separate; border-spacing: 4px; ta
   table.table-cards td.cell-wide { display: block; text-align: left; }
   table.table-cards td.cell-wide::before { display: block; margin-bottom: 4px; }
 }
+
+/* Табло: толық кезек */
+.queue-count { display: inline-block; min-width: 28px; padding: 1px 9px; margin-left: 6px; border-radius: 999px;
+  background: var(--gold); color: var(--navy-dark); font-size: 16px; text-align: center; vertical-align: middle; }
+.queue-scroll { max-height: 60vh; overflow-y: auto; }
+.queue-table td:first-child, .queue-table th:first-child { width: 44px; color: var(--muted); font-size: 16px; font-weight: 400; }
+.queue-table td:nth-child(2) { font-weight: 700; font-size: 20px; white-space: nowrap; }
+.queue-table td:nth-child(3) { font-size: 14px; }
+.queue-table tr.next-up td { background: var(--ivory); }
+.queue-table tr.next-up td:nth-child(2) { color: var(--navy); }
