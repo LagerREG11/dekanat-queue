@@ -7,7 +7,7 @@ from app import university_info as ui
 @pytest.mark.parametrize("lang", ["kk", "ru"])
 def test_localized_has_all_sections(lang):
     data = ui.localized(lang)
-    for key in ("about", "facts", "institutes", "history", "contacts",
+    for key in ("about", "facts", "history", "contacts",
                 "building5", "buildings", "featured_partners", "mobility"):
         assert data[key], key
     assert len(data["institutes"]) == 5

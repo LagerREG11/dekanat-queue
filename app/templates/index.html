@@ -61,7 +61,6 @@
       <li><span>{{ s.days }}</span><span>{{ s.hours }}</span></li>
       <li><span>{{ t('booking_hours') }}</span><span>{{ s.booking_from }}–{{ s.hours.split('–')[1] }}</span></li>
       {% if s.lunch %}<li><span>{{ t('lunch_time') }}</span><span>{{ s.lunch }}</span></li>{% endif %}
-      {% if s.breaks %}<li><span>{{ t('short_breaks') }}</span><span>{{ s.breaks | join(', ') }}</span></li>{% endif %}
     </ul>
 
     <div class="qr">
@@ -141,10 +140,6 @@
   <div class="facts">
     {% for f in uni.facts %}<div><b>{{ f.value }}</b><span>{{ f.label }}</span></div>{% endfor %}
   </div>
-  <h3>{{ t('institutes_title') }}</h3>
-  <ul class="institutes">
-    {% for name in uni.institutes %}<li>{{ name }}</li>{% endfor %}
-  </ul>
 </section>
 
 <section class="box" id="history">

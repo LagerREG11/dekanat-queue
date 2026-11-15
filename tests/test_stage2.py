@@ -59,7 +59,7 @@ def test_password_length_limits():
 @pytest.mark.parametrize("moment,ok", [
     (D(8, 44), False), (D(8, 45), True), (D(8, 59), True), (D(10), True),
     (D(13, 30), False),            # түскі үзіліс
-    (D(11, 5), False),             # қысқа үзіліс
+    (D(11, 5), True),              # қысқа үзілістер алынып тасталды
     (D(17, 59), True), (D(18, 0), False), (D(21), False),
     (D(10, day=21), False),        # сенбі
 ])

@@ -48,7 +48,7 @@
         {% endfor %}
       </ul>
       {% set s = sched() %}
-      <p class="small muted gap-top">{{ s.days }} {{ s.hours }}{% if s.lunch %}, {{ t('lunch_time') | lower }} {{ s.lunch }}{% endif %}{% if s.breaks %}, {{ t('short_breaks') | lower }}: {{ s.breaks | join(', ') }}{% endif %}</p>
+      <p class="small muted gap-top">{{ s.days }} {{ s.hours }}{% if s.lunch %}, {{ t('lunch_time') | lower }} {{ s.lunch }}{% endif %}</p>
       <div class="qr">
         <img src="{{ url_for('qr_code') }}" alt="QR" width="120" height="120">
         <div class="small"><b>{{ t('qr_title') }}</b><br>{{ t('qr_text') }}<br><span class="qr-url">{{ public_url() }}</span></div>

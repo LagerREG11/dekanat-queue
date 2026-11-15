@@ -16,7 +16,7 @@
 </div>
 
 <div class="tabs">
-  {% for tb in ('users', 'schedule', 'calendar', 'services', 'tickets', 'audit') %}
+  {% for tb in ('users', 'schedule', 'calendar', 'services', 'tickets') %}
     <a class="{{ 'active' if tb == tab }}" href="{{ url_for('admin_panel', tab=tb) }}">{{ t('tab_' + tb) }}{% if tb == 'users' and pending %}<span class="count">{{ pending }}</span>{% endif %}</a>
   {% endfor %}
 </div>
@@ -118,8 +118,6 @@
       <div><label for="lunch_from">{{ t('f_lunch_from') }}</label><input id="lunch_from" name="lunch_from" type="time" value="{{ sched_form.lunch_from }}"></div>
       <div><label for="lunch_to">{{ t('f_lunch_to') }}</label><input id="lunch_to" name="lunch_to" type="time" value="{{ sched_form.lunch_to }}"></div>
     </div>
-    <label for="breaks">{{ t('f_breaks') }}</label>
-    <input id="breaks" name="breaks" type="text" value="{{ sched_form.breaks }}" placeholder="11:00-11:15, 16:00-16:15">
     <label>{{ t('f_workdays') }}</label>
     <div class="days">
       {% for d in t('days_short').split(',') %}
@@ -278,21 +276,4 @@
 </section>
 {% endif %}
 
-{# ---------- Журнал ---------- #}
-{% if tab == 'audit' %}
-<section class="box">
-  <h2 class="box-title">{{ t('tab_audit') }}</h2>
-  <table class="table table-cards">
-    <thead><tr><th>{{ t('date') }}</th><th>{{ t('f_username') }}</th><th>{{ t('action') }}</th><th>{{ t('details') }}</th></tr></thead>
-    <tbody>
-    {% for a in audit %}
-      <tr><td data-label="{{ t('date') }}">{{ a.created_at }}</td><td data-label="{{ t('f_username') }}">{{ a.username or '—' }}</td>
-          <td data-label="{{ t('action') }}">{{ a.action }}</td><td data-label="{{ t('details') }}">{{ a.details }}</td></tr>
-    {% else %}
-      <tr><td colspan="4" class="muted">{{ t('nothing_found') }}</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</section>
-{% endif %}
 {% endblock %}

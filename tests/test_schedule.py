@@ -6,12 +6,12 @@ import pytest
 from app import service as ql
 
 
-def test_default_breaks_close_reception():
-    assert ql.is_open(datetime(2026, 11, 16, 11, 5)) is False      # 11:00-11:15 үзіліс
-    assert ql.current_pause(datetime(2026, 11, 16, 11, 5)) == "break"
+def test_default_schedule_has_lunch_but_no_short_breaks():
+    assert ql.DEFAULT_SCHEDULE.breaks == ()
+    assert ql.is_open(datetime(2026, 11, 16, 11, 5)) is True        # қысқа үзіліс жоқ
+    assert ql.current_pause(datetime(2026, 11, 16, 16, 5)) is None
     assert ql.current_pause(datetime(2026, 11, 16, 13, 30)) == "lunch"
-    assert ql.current_pause(datetime(2026, 11, 16, 10, 0)) is None
-    assert ql.is_open(datetime(2026, 11, 16, 11, 15)) is True       # үзіліс аяқталды
+    assert ql.is_open(datetime(2026, 11, 16, 14, 0)) is True        # түскі үзіліс аяқталды
 
 
 def test_build_schedule_ok():

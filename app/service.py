@@ -326,7 +326,7 @@ class Schedule:
     breaks: tuple[tuple[time, time], ...] = ()   # мысалы ((11:00, 11:15), (16:00, 16:15))
 
 
-DEFAULT_SCHEDULE = Schedule(breaks=((time(11, 0), time(11, 15)), (time(16, 0), time(16, 15))))
+DEFAULT_SCHEDULE = Schedule()  # қысқа үзілістер жоқ, тек түскі үзіліс
 
 
 def current_pause(now: datetime, schedule: Schedule = DEFAULT_SCHEDULE) -> str | None:

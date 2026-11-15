@@ -794,7 +794,7 @@ def _register_staff_api_routes(app: Flask) -> None:
 # ---------------------------------------------------------------------------
 # Әкімші панелі (декан және декан орынбасары)
 # ---------------------------------------------------------------------------
-ADMIN_TABS = ("users", "schedule", "calendar", "services", "tickets", "audit")
+ADMIN_TABS = ("users", "schedule", "calendar", "services", "tickets")
 
 
 def _registration_from_form(f) -> tuple:
@@ -836,7 +836,7 @@ def _register_admin_routes(app: Flask) -> None:
             user_services=user_services, pending=repo.count_pending(conn),
             services=repo.list_services(conn, active_only=False),
             tickets=repo.tickets_for_day(conn, now()), statuses=repo.ALL_STATUSES,
-            audit=repo.list_audit(conn), stats=repo.stats_today(conn, now()),
+            stats=repo.stats_today(conn, now()),
             sched_form=ql.schedule_to_dict(schedule()),
             announcements=repo.list_announcements(conn, now()),
             day_overrides=repo.list_overrides(conn, now().strftime("%Y-%m-%d")),
@@ -920,8 +920,9 @@ def _register_admin_schedule_routes(app: Flask) -> None:
     def admin_schedule_save():
         f = request.form
         try:
+            # Қысқа үзілістер алынып тасталды: кестеде тек жұмыс уақыты мен түскі үзіліс
             new = ql.build_schedule(f.get("open_at"), f.get("close_at"), f.get("lunch_from"),
-                                    f.get("lunch_to"), f.get("breaks"), f.getlist("workdays"))
+                                    f.get("lunch_to"), "", f.getlist("workdays"))
             repo.save_schedule(db(), current_user()["id"], new, now())
             flash("msg_saved", "ok")
         except ql.QueueError as e:

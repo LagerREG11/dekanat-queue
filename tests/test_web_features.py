@@ -30,14 +30,15 @@ def test_deputy_cannot_create_dean(client, app):
 
 def test_schedule_tab_and_save(client):
     login_deputy(client)
-    assert "11:00-11:15" in client.get("/admin?tab=schedule").get_data(as_text=True)
+    assert 'name="breaks"' not in client.get("/admin?tab=schedule").get_data(as_text=True)
     r = client.post("/admin/schedule", data={"open_at": "08:00", "close_at": "17:00",
                                              "lunch_from": "12:00", "lunch_to": "13:00",
                                              "breaks": "10:00-10:10", "workdays": ["0", "1", "2", "3", "4"]},
                     follow_redirects=True)
     assert "Сақталды" in r.get_data(as_text=True)
     home = client.get("/").get_data(as_text=True)
-    assert "08:00–17:00" in home and "12:00–13:00" in home and "10:00–10:10" in home
+    assert "08:00–17:00" in home and "12:00–13:00" in home
+    assert "10:00–10:10" not in home                                 # қысқа үзіліс қабылданбайды
 
 
 def test_schedule_validation_error(client):
@@ -52,9 +53,11 @@ def test_student_cannot_change_schedule(client):
     assert client.post("/admin/schedule", data={"open_at": "08:00"}).status_code == 302
 
 
-def test_home_shows_lunch_and_breaks(client):
+def test_home_shows_lunch_without_short_breaks_and_institutes(client):
     html = client.get("/").get_data(as_text=True)
-    assert "13:00–14:00" in html and "11:00–11:15" in html and "16:00–16:15" in html
+    assert "13:00–14:00" in html
+    assert "11:00–11:15" not in html and "16:00–16:15" not in html
+    assert "80 000" not in html and "Гуманитарлық-педагогикалық институт" not in html
 
 
 def test_staff_break_flow(client):

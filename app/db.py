@@ -334,6 +334,20 @@ def seed(conn: sqlite3.Connection, now: datetime | None = None) -> None:
         if not conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
             create_user(conn, username, password, name, role, now=now, **extra)
     _update_services_v2(conn)
+    _drop_short_breaks(conn)
+
+
+def _drop_short_breaks(conn: sqlite3.Connection) -> None:
+    """Сақталған кестеден қысқа үзілістерді бір рет алып тастайды (тапсырыс берушінің талабы)."""
+    if conn.execute("SELECT 1 FROM settings WHERE key='no_short_breaks'").fetchone():
+        return
+    row = conn.execute("SELECT value FROM settings WHERE key='schedule'").fetchone()
+    if row is not None:
+        data = json.loads(row[0])
+        data["breaks"] = ""
+        conn.execute("UPDATE settings SET value=? WHERE key='schedule'",
+                     (json.dumps(data, ensure_ascii=False),))
+    conn.execute("INSERT INTO settings (key, value) VALUES ('no_short_breaks', '1')")
 
 
 def _update_services_v2(conn: sqlite3.Connection) -> None:

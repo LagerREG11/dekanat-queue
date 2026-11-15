@@ -3,6 +3,7 @@ import re
 
 import pytest
 
+from app import db as repo
 from app import i18n
 from app.web import create_app
 
@@ -330,7 +331,9 @@ def test_admin_fixes_ticket_and_audit(client, app):
     login(client, "admin")
     client.post("/admin/tickets/1/status", data={"status": "cancelled"})
     assert app.extensions["db"].execute("SELECT status FROM tickets WHERE id=1").fetchone()[0] == "cancelled"
-    assert "ticket_status" in client.get("/admin?tab=audit").get_data(as_text=True)
+    # «Журнал» қойындысы алынып тасталды, бірақ әрекет журналға жазыла береді
+    assert any(a["action"] == "ticket_status" for a in repo.list_audit(app.extensions["db"]))
+    assert "tab=audit" not in client.get("/admin?tab=audit").get_data(as_text=True)
 
 
 def test_admin_adds_service(client):
