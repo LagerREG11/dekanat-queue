@@ -699,6 +699,8 @@ TRANSLATIONS["kk"].update({
     "admission_short": "Қабылдау комиссиясы",
     "booking_hours": "Талон беру уақыты",
     "confirm_yes": "Иә, растаймын",
+    "pw_show": "Құпиясөзді көрсету",
+    "pw_hide": "Құпиясөзді жасыру",
     "confirm_no": "Болдырмау",
 })
 
@@ -790,6 +792,8 @@ TRANSLATIONS["ru"].update({
     "admission_short": "Приёмная комиссия",
     "booking_hours": "Выдача талонов",
     "confirm_yes": "Да, подтверждаю",
+    "pw_show": "Показать пароль",
+    "pw_hide": "Скрыть пароль",
     "confirm_no": "Отмена",
 })
 

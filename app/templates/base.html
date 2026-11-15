@@ -11,7 +11,7 @@
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
 </head>
 {% set ep = request.endpoint %}
-<body class="{% block body_class %}{% endblock %}" data-yes="{{ t('confirm_yes') }}" data-no="{{ t('confirm_no') }}" {% block body_attrs %}{% endblock %}>
+<body class="{% block body_class %}{% endblock %}" data-yes="{{ t('confirm_yes') }}" data-no="{{ t('confirm_no') }}" data-pw-show="{{ t('pw_show') }}" data-pw-hide="{{ t('pw_hide') }}" {% block body_attrs %}{% endblock %}>
 
 <div class="topline">
   <div class="container">

@@ -318,6 +318,54 @@
     });
   }
 
+  // ---------- Құпиясөзді көрсету / жасыру («көз» батырмасы) ----------
+  // Әр құпиясөз өрісінің ішіне батырма қосылады: басқанда жазылған құпиясөз көрінеді.
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  function eyeIcon(crossed) {
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "22");
+    svg.setAttribute("height", "22");
+    svg.setAttribute("aria-hidden", "true");
+    const paths = ["M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z", "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"];
+    if (crossed) paths.push("M3 3l18 18");
+    paths.forEach(function (d) {
+      const p = document.createElementNS(SVG_NS, "path");
+      p.setAttribute("d", d);
+      p.setAttribute("fill", "none");
+      p.setAttribute("stroke", "currentColor");
+      p.setAttribute("stroke-width", "2");
+      p.setAttribute("stroke-linecap", "round");
+      p.setAttribute("stroke-linejoin", "round");
+      svg.appendChild(p);
+    });
+    return svg;
+  }
+  document.querySelectorAll('input[type="password"]').forEach(function (input) {
+    const wrap = document.createElement("div");
+    wrap.className = "pw-wrap";
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pw-toggle";
+    function render() {
+      const shown = input.type === "text";
+      btn.replaceChildren(eyeIcon(shown));
+      const label = shown ? body.dataset.pwHide : body.dataset.pwShow;
+      btn.setAttribute("aria-label", label || "");
+      btn.title = label || "";
+      btn.setAttribute("aria-pressed", shown ? "true" : "false");
+    }
+    btn.addEventListener("click", function () {
+      input.type = input.type === "password" ? "text" : "password";
+      render();
+      input.focus();
+    });
+    render();
+    wrap.appendChild(btn);
+  });
+
   // ---------- Құпиясөз беріктігі (серверлік ережемен бірдей: service.password_strength) ----------
   // weak — қызыл, medium — қызғылт сары (кіші + бас әріп + цифр),
   // strong — жасыл (тыныс белгісі + әріп + цифр).

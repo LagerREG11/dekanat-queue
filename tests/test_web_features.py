@@ -172,3 +172,11 @@ def test_local_clock_uses_qyzylorda_time():
     utc = datetime.now(UTC).replace(tzinfo=None)
     assert abs((local - utc) - timedelta(hours=5)) < timedelta(minutes=1)
     assert abs(_local_clock("No/Such_Zone")() - datetime.now()) < timedelta(minutes=1)
+
+
+def test_password_eye_labels_on_login_and_register(client):
+    """«Көз» батырмасы (app.js) үшін аудармалар әр бетте бар."""
+    for url in ("/login", "/register"):
+        html = client.get(url).get_data(as_text=True)
+        assert 'data-pw-show="Құпиясөзді көрсету"' in html and 'data-pw-hide="Құпиясөзді жасыру"' in html
+        assert 'type="password"' in html
