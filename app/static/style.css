@@ -389,7 +389,9 @@ table.calendar { width: 100%; border-collapse: separate; border-spacing: 4px; ta
 .windows-list li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--line); }
 
 /* ---------- Басқару панелі ---------- */
-.tabs { display: flex; border-bottom: 1px solid var(--line); margin-bottom: 16px; overflow-x: auto; gap: 2px; }
+.tabs { display: flex; border-bottom: 1px solid var(--line); margin-bottom: 16px; overflow-x: auto; gap: 2px;
+  scrollbar-width: none; }  /* қойындылар жылжиды, бірақ айналдыру жолағы көрінбейді */
+.tabs::-webkit-scrollbar { display: none; }
 .tabs a { padding: 10px 14px; text-decoration: none; color: var(--text); border-bottom: 3px solid transparent;
   white-space: nowrap; font-size: 14px; }
 .tabs a:hover { color: var(--navy); }

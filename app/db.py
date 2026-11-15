@@ -510,6 +510,8 @@ def update_profile(conn, user_id: int, data: dict, now: datetime) -> None:
                  (data["phone"], data["gender"], data["email"], user_id))
     if data.get("full_name"):
         conn.execute("UPDATE users SET full_name=? WHERE id=?", (data["full_name"], user_id))
+    if "group_name" in data:
+        conn.execute("UPDATE users SET group_name=? WHERE id=?", (data["group_name"], user_id))
     log(conn, user_id, "profile", "", now)
 
 

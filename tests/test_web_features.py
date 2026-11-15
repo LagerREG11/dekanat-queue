@@ -180,3 +180,17 @@ def test_password_eye_labels_on_login_and_register(client):
         html = client.get(url).get_data(as_text=True)
         assert 'data-pw-show="Құпиясөзді көрсету"' in html and 'data-pw-hide="Құпиясөзді жасыру"' in html
         assert 'type="password"' in html
+
+
+def test_student_cabinet_has_no_priority_checkbox(client):
+    """Басым кезек белгісі алынып тасталды (тапсырыс берушінің талабы)."""
+    from conftest import make_iin
+    sid = make_iin(700)
+    client.post("/register", data={"kind": "student", "full_name": "Айгүл Сәрсенова", "student_id": sid,
+                                   "group_name": "ИС-24-1", "password": "Aigul#2026", "password2": "Aigul#2026"})
+    client.post("/login", data={"username": sid, "password": "Aigul#2026"})
+    html = client.get("/student").get_data(as_text=True)
+    assert 'name="priority"' not in html
+    client.post("/student/ticket", data={"service_id": "1", "priority": "1"})
+    assert client.application.extensions["db"].execute(
+        "SELECT priority FROM tickets ORDER BY id DESC LIMIT 1").fetchone()[0] == 0

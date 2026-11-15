@@ -231,16 +231,18 @@ class Registration:
 
 def _registration_login(kind: str, student_id: str, group_name: str,
                         username: str) -> tuple[str, str | None, str, list[str]]:
-    """Логинді анықтайды: студентте — ЖСН (тобымен бірге), қызметкерде — өз логині."""
+    """Логинді анықтайды. Барлығы өз логинін таңдайды (студент қаласа, ЖСН-ін жаза алады).
+
+    Студенттің логині student_id өрісінде де сақталады (талонда көрсетіледі). Тобы міндетті
+    емес — студент оны кейін профильде толтырады; жазылса, пішімі тексеріледі.
+    """
     errors: list[str] = []
     if kind == STUDENT:
-        student_id = (student_id or "").strip()
-        group_name = (group_name or "").strip().upper()
-        if not is_valid_iin(student_id):
-            errors.append("err_iin")
-        if not group_name or not GROUP_RE.match(group_name):
-            errors.append("err_group")
-        return student_id, student_id, group_name, errors
+        login = (username or student_id or "").strip().lower()
+        group_name = validate_group(group_name, errors)
+        if not USERNAME_RE.match(login):
+            errors.append("err_username")
+        return login, login, group_name, errors
     username = (username or "").strip().lower()
     if not USERNAME_RE.match(username):
         errors.append("err_username")
@@ -252,10 +254,8 @@ def validate_registration(kind: str, full_name: str, password: str, password2: s
                           username: str = "") -> tuple[Registration | None, list[str]]:
     """Тіркелу формасын тексереді.
 
-    kind='student' — логин ретінде ЖСН (ИИН) қолданылады, ол student_id өрісінде сақталады.
-    kind='dekanat' | 'deputy' | 'admin' — қызметкер өз логинін таңдайды. Мұндай аккаунт
-    растауды күтеді (is_active=0): оны db.register() белсенді емес етіп жасайды, ал
-    рұқсатты can_manage_user() бойынша декан немесе (декандықтан басқасын) орынбасар береді.
+    Тіркелуде міндетті: аты-жөні, логин және құпиясөз. Сайтта өзі тек студент тіркеледі;
+    қызметкер аккаунтын администратор ашады (сол функция арқылы тексеріледі).
     """
     errors: list[str] = []
     if kind not in ROLES:
@@ -644,6 +644,16 @@ def detect_image_type(data: bytes) -> str:
     if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return "webp"
     raise QueueError("err_avatar_type")
+
+
+def validate_group(group_name: str, errors: list[str] | None = None) -> str:
+    """Топ атауы міндетті емес; жазылса, пішімі тексеріледі (мысалы, ИС-24-1)."""
+    group_name = (group_name or "").strip().upper()
+    if group_name and not GROUP_RE.match(group_name):
+        if errors is None:
+            raise QueueError("err_group")
+        errors.append("err_group")
+    return group_name
 
 
 def validate_full_name(full_name: str) -> str:

@@ -495,9 +495,8 @@ def _register_auth_routes(app: Flask) -> None:
 
     @app.route("/register", methods=["GET", "POST"])
     def register():
-        kind = request.values.get("kind", ql.STUDENT)
-        if kind not in ql.ROLES:
-            kind = ql.STUDENT
+        # Өзі тек студент тіркеледі; декан мен орынбасардың аккаунтын администратор ашады.
+        kind = ql.STUDENT
         form = request.form if request.method == "POST" else {}
         if request.method == "POST":
             reg, errors = ql.validate_registration(
@@ -508,31 +507,24 @@ def _register_auth_routes(app: Flask) -> None:
             if not errors:
                 try:
                     repo.register(db(), reg, now())
-                    if kind == ql.STUDENT:
-                        flash("msg_registered_student", "ok")
-                    else:
-                        flash("msg_registered_staff", "ok")
-                    return redirect(url_for("login", role=kind))
+                    flash("msg_registered_student", "ok")
+                    return redirect(url_for("login"))
                 except ql.QueueError as e:
                     errors = [e.code]
             for err in errors:
                 flash(err, "error")
-        return render_template("register.html", kind=kind, form=form)
+        return render_template("register.html", form=form)
 
 
 
 def _register_login_routes(app: Flask) -> None:
     @app.route("/login", methods=["GET", "POST"])
     def login():
-        role = request.values.get("role", ql.STUDENT)
-        if role not in ql.ROLES:
-            role = ql.STUDENT
+        # Барлығы бір формадан кіреді: логин (студентте — ЖСН) және құпиясөз.
         if request.method == "POST":
             if rate_limited("login", app.config["LOGIN_LIMIT"]):
                 flash("err_rate", "error")
-                return render_template("login.html", role=role), 429
-            # Қойынды тек өріс атауын өзгертеді: аккаунт кез келген қойындыдан кіре алады,
-            # сондықтан декан «Деканат» қойындысында тұрып кірсе де қате шықпайды.
+                return render_template("login.html"), 429
             user, err = repo.authenticate(db(), request.form.get("username"),
                                           request.form.get("password"))
             if err:
@@ -550,7 +542,7 @@ def _register_login_routes(app: Flask) -> None:
                 repo.log(db(), user["id"], "login", user["role"], now())
                 default = url_for(ROLE_HOME[user["role"]])
                 return redirect(safe_next(request.form.get("next"), default))
-        return render_template("login.html", role=role)
+        return render_template("login.html")
 
 
 
@@ -579,8 +571,12 @@ def _register_profile_routes(app: Flask) -> None:
             try:
                 if f.get("action") == "info":
                     data = ql.validate_profile(f.get("phone"), f.get("gender"), f.get("email"))
-                    if user["role"] == ql.ADMIN:  # аты-жөнін тек администратор өзі өзгертеді
+                    # Аты-жөнін администратор мен студент өзі өзгертеді, тобын — студент.
+                    # Өріс жіберілмесе, бұрынғы мәні сақталады.
+                    if user["role"] in (ql.ADMIN, ql.STUDENT) and "full_name" in f:
                         data["full_name"] = ql.validate_full_name(f.get("full_name"))
+                    if user["role"] == ql.STUDENT and "group_name" in f:
+                        data["group_name"] = ql.validate_group(f.get("group_name"))
                     repo.update_profile(db(), user["id"], data, now())
                     flash("msg_profile_saved", "ok")
                 else:
@@ -696,8 +692,7 @@ def _register_student_ticket_routes(app: Flask) -> None:
             return redirect(url_for("student_cabinet"))
         try:
             ticket = repo.create_ticket(db(), current_user(), request.form.get("service_id"),
-                                        now(), priority=request.form.get("priority") == "1",
-                                        check_hours=app.config["CHECK_HOURS"])
+                                        now(), check_hours=app.config["CHECK_HOURS"])
             return redirect(url_for("ticket_page", token=ticket["token"]))
         except ql.QueueError as e:
             flash_error(e)

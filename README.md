@@ -55,7 +55,7 @@ pytest --cov=app --cov-report=term
 | Администратор | admin | Admin2026 |
 | Декан | dekanat1 | Dekanat2026 |
 | Декан орынбасары | zamdekan | Deputy2026 |
-| Студент (ЖСН) | 030512501238 | Student2026 |
+| Студент | 030512501238 | Student2026 |
 
 Нақты пайдалануда құпиясөздерді «Профиль» бетінде ауыстырыңыз. Администратор құпиясөзін ұмытса: `flask --app app.web set-password admin`.
 

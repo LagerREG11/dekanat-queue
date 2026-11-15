@@ -23,7 +23,7 @@
       {% if user %}
         <a class="btn btn-primary btn-big" href="{{ url_for(role_home[user.role]) }}">{{ t('go_cabinet') }}</a>
       {% else %}
-        <a class="btn btn-primary btn-big" href="{{ url_for('login', role='student') }}">{{ t('cta_take') }}</a>
+        <a class="btn btn-primary btn-big" href="{{ url_for('login') }}">{{ t('cta_take') }}</a>
         <a class="btn btn-ghost btn-big" href="{{ url_for('register') }}">{{ t('nav_register') }}</a>
       {% endif %}
     </div>

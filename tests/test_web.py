@@ -19,8 +19,7 @@ def login(client, role, username=None, password=None):
 
 
 def register_student(client, sid="050720610008", **extra):
-    data = {"kind": "student", "full_name": "Дана Серікқызы", "student_id": sid,
-            "group_name": "ЭК-23-2", "password": "Parol2026", "password2": "Parol2026"}
+    data = {"full_name": "Дана Серікқызы", "username": sid, "password": "Parol2026", "password2": "Parol2026"}
     data.update(extra)
     return client.post("/register", data=data)
 
@@ -76,10 +75,11 @@ def test_login_redirects_to_role_home(client, role, home):
     assert client.get(home).status_code == 200
 
 
-def test_login_tabs_on_page(client):
-    html = client.get("/login?role=admin").get_data(as_text=True)
-    assert "role=student" in html and "role=dekanat" in html and "role=deputy" in html
-    assert 'class="active" href="/login?role=admin"' in html
+def test_login_single_form_without_role_tabs(client):
+    """Кіру бетінде рөл қойындылары жоқ: барлығы логин мен құпиясөз жазады."""
+    html = client.get("/login").get_data(as_text=True)
+    assert "role=student" not in html and "role=dekanat" not in html and 'name="role"' not in html
+    assert 'name="username"' in html and 'type="password"' in html
 
 
 def test_wrong_password(client):
@@ -136,15 +136,14 @@ def test_student_cannot_post_admin_actions(client, app):
 # ---------------- Тіркелу ----------------
 def test_register_student_and_login(client):
     r = register_student(client)
-    assert r.status_code == 302 and "role=student" in r.headers["Location"]
-    r = client.post("/login", data={"role": "student", "username": "050720610008",
-                                    "password": "Parol2026"})
+    assert r.status_code == 302 and r.headers["Location"].endswith("/login")
+    r = client.post("/login", data={"username": "050720610008", "password": "Parol2026"})
     assert r.headers["Location"] == "/student"
 
 
 def test_register_errors_shown(client):
     html = register_student(client, sid="12", password2="other").get_data(as_text=True)
-    assert "ЖСН қате" in html and "сәйкес келмейді" in html
+    assert "Логин 3–30 таңба" in html and "сәйкес келмейді" in html
 
 
 def test_register_duplicate(client):
@@ -153,54 +152,37 @@ def test_register_duplicate(client):
     assert "бұрыннан тіркелген" in html
 
 
-def test_register_staff_pending_until_admin_approves(client, app):
+def test_staff_cannot_self_register_admin_creates_them(client, app):
+    """Сайтта өзі тек студент тіркеледі; декан мен орынбасарды администратор ашады."""
     client.post("/register", data={"kind": "dekanat", "full_name": "Жанар Сейітова",
-                                   "username": "jseitova", "password": "Parol2026",
-                                   "password2": "Parol2026"})
-    html = client.post("/login", data={"role": "dekanat", "username": "jseitova",
-                                       "password": "Parol2026"}).get_data(as_text=True)
-    assert "расталмаған" in html
-    new_id = app.extensions["db"].execute(
-        "SELECT id FROM users WHERE username='jseitova'").fetchone()[0]
-    login(client, "admin")
-    assert "jseitova" in client.get("/admin").get_data(as_text=True)
-    client.post(f"/admin/users/{new_id}/activate")
-    client.post("/logout")
-    r = client.post("/login", data={"role": "dekanat", "username": "jseitova",
-                                    "password": "Parol2026"})
-    assert r.headers["Location"] == "/dekanat"
-
-
-def test_admin_registration_waits_for_admin_approval(client, app):
-    """Әкімші болып тіркелуге болады, бірақ қазіргі әкімші растамайынша кіре алмайды."""
-    html = client.get("/register?kind=admin").get_data(as_text=True)
-    assert "тек қазіргі администратор растай алады" in html
-    client.post("/register", data={"kind": "admin", "full_name": "Жаңа Декан",
-                                   "username": "newdean", "password": "Parol2026",
-                                   "password2": "Parol2026"})
+                                   "username": "jseitova", "password": "Parol2026", "password2": "Parol2026"})
     conn = app.extensions["db"]
-    row = conn.execute("SELECT id, role, is_active FROM users WHERE username='newdean'").fetchone()
-    assert row["role"] == "admin" and row["is_active"] == 0
-    html = client.post("/login", data={"role": "admin", "username": "newdean",
-                                       "password": "Parol2026"}).get_data(as_text=True)
-    assert "расталмаған" in html
-    # орынбасар әкімші өтінімін растай алмайды
-    client.post("/login", data={"role": "deputy", "username": "zamdekan", "password": "Deputy2026"})
-    client.post(f"/admin/users/{row['id']}/activate")
-    assert conn.execute("SELECT is_active FROM users WHERE id=?", (row["id"],)).fetchone()[0] == 0
-    client.post("/logout")
-    # әкімші растайды — енді кіре алады
+    assert conn.execute("SELECT role FROM users WHERE username='jseitova'").fetchone()[0] == "student"
     login(client, "admin")
-    client.post(f"/admin/users/{row['id']}/activate")
+    client.post("/admin/users/new", data={"role": "dekanat", "full_name": "Ерлан Дүйсенов",
+                                          "username": "e.duisenov", "password": "Dekan#2026", "window_no": "5"})
+    client.post("/admin/users/new", data={"role": "deputy", "full_name": "Гүлнар Әбенова",
+                                          "username": "g.abenova", "password": "Deputy#2026"})
     client.post("/logout")
-    r = client.post("/login", data={"role": "admin", "username": "newdean", "password": "Parol2026"})
-    assert r.headers["Location"] == "/admin"
+    r = client.post("/login", data={"username": "e.duisenov", "password": "Dekan#2026"})
+    assert r.status_code == 302 and r.headers["Location"].endswith("/dekanat")
+    client.post("/logout")
+    r = client.post("/login", data={"username": "g.abenova", "password": "Deputy#2026"})
+    assert r.status_code == 302 and r.headers["Location"].endswith("/admin")
 
 
-def test_register_page_has_all_roles(client):
+def test_register_cannot_create_admin(client, app):
+    """kind=admin жіберілсе де, тіркелу тек студент аккаунтын ашады."""
+    client.post("/register", data={"kind": "admin", "full_name": "Жаңа Декан", "username": "newdean",
+                                   "password": "Parol2026", "password2": "Parol2026"})
+    row = app.extensions["db"].execute("SELECT role FROM users WHERE username='newdean'").fetchone()
+    assert row["role"] == "student"
+
+
+def test_register_page_is_for_students_only(client):
     html = client.get("/register").get_data(as_text=True)
-    for r in ("kind=student", "kind=dekanat", "kind=deputy", "kind=admin"):
-        assert r in html
+    assert "kind=" not in html and 'name="group_name"' not in html and 'name="student_id"' not in html
+    assert "Мұнда тек студенттер тіркеледі" in html and 'name="full_name"' in html and 'name="username"' in html
 
 
 # ---------------- Студент ----------------

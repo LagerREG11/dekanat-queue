@@ -3,20 +3,13 @@
 {% block content %}
 <section class="box narrow">
   <h1>{{ t('login_title') }}</h1>
-  <div class="tabs">
-    {% for r in roles %}
-      <a class="{{ 'active' if r == role }}" href="{{ url_for('login', role=r) }}">{{ t('role_' + r) }}</a>
-    {% endfor %}
-  </div>
-
   <form method="post" class="form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="role" value="{{ role }}">
     <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
-    <label for="username">{{ t('f_student_id') if role == 'student' else t('f_username') }}</label>
+    <label for="username">{{ t('f_username') }}</label>
     <input id="username" name="username" required autocomplete="username" maxlength="40"
-           {% if role == 'student' %}inputmode="numeric" placeholder="{{ t('f_student_id_ph') }}"{% endif %}>
-    {% if role == 'student' %}<span class="hint">{{ t('student_id_is_login') }}</span>{% endif %}
+           placeholder="{{ t('f_login_ph') }}">
+    <span class="hint">{{ t('login_hint') }}</span>
     <label for="password">{{ t('f_password') }}</label>
     <input id="password" name="password" type="password" required autocomplete="current-password">
     <div class="buttons">
@@ -25,7 +18,7 @@
   </form>
 
   <p class="small center gap-top">
-    {{ t('no_account') }} <a href="{{ url_for('register', kind=role) }}">{{ t('nav_register') }}</a>
+    {{ t('no_account') }} <a href="{{ url_for('register') }}">{{ t('nav_register') }}</a>
   </p>
 
   {% if show_demo_accounts %}

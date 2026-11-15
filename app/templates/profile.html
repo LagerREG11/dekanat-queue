@@ -16,8 +16,8 @@
     <h2>{{ user.full_name }}</h2>
     <ul class="profile-facts">
       {% if user.role == 'student' %}
-        <li><span>{{ t('f_student_id') }}</span><b>{{ user.student_id }}</b></li>
-        <li><span>{{ t('group') }}</span><b>{{ user.group_name }}</b></li>
+        <li><span>{{ t('f_username') }}</span><b>{{ user.username }}</b></li>
+        <li><span>{{ t('group') }}</span><b>{{ user.group_name or '—' }}</b></li>
       {% else %}
         <li><span>{{ t('f_username') }}</span><b>{{ user.username }}</b></li>
         <li><span>{{ t('window') }}</span><b>{{ user.window_no or '—' }}</b></li>
@@ -46,10 +46,15 @@
     <form method="post" class="form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="info">
-      {% if user.role == 'admin' %}
+      {% if user.role in ('admin', 'student') %}
         <label for="full_name">{{ t('f_name') }}</label>
         <input id="full_name" name="full_name" required maxlength="80" autocomplete="name"
                placeholder="{{ t('f_name_ph') }}" value="{{ form.get('full_name', user.full_name) }}">
+      {% endif %}
+      {% if user.role == 'student' %}
+        <label for="group_name">{{ t('group') }}</label>
+        <input id="group_name" name="group_name" maxlength="20"
+               placeholder="{{ t('f_group_ph') }}" value="{{ form.get('group_name', user.group_name) }}">
       {% endif %}
       <label for="phone">{{ t('f_phone') }}</label>
       <input id="phone" name="phone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel"

@@ -278,23 +278,28 @@ def test_profile_info_saved(client):
 
 
 def test_admin_edits_full_name_others_cannot(client):
-    """Администратор өз профилінде аты-жөнін, e-mail, жынысын, телефонын өзгерте алады."""
+    """Администратор мен студент профильде аты-жөнін өзгертеді; студент тобын да толтырады."""
     login(client, "admin", "Admin2026")
-    html = client.get("/profile").get_data(as_text=True)
-    assert 'name="full_name"' in html
+    assert 'name="full_name"' in client.get("/profile").get_data(as_text=True)
     client.post("/profile", data={"action": "info", "full_name": "Сейітов Нұрлан Асқарұлы",
                                   "phone": "8 777 123 45 67", "gender": "male", "email": "admin@korkyt.kz"})
     html = client.get("/profile").get_data(as_text=True)
     assert "Сейітов Нұрлан Асқарұлы" in html and "admin@korkyt.kz" in html and "+7 777 123 45 67" in html
     bad = client.post("/profile", data={"action": "info", "full_name": "1"}).get_data(as_text=True)
-    assert 'class="alert alert-error"' in bad or "alert-error" in bad
+    assert "alert-error" in bad
     assert "Сейітов Нұрлан Асқарұлы" in client.get("/profile").get_data(as_text=True)
     client.post("/logout")
-    # студентке аты-жөнін өзгерту өрісі жоқ, жіберсе де өзгермейді
     login(client, "030512501238", "Student2026")
+    html = client.get("/profile").get_data(as_text=True)
+    assert 'name="full_name"' in html and 'name="group_name"' in html
+    client.post("/profile", data={"action": "info", "full_name": "Жаңа Есім Студент", "group_name": "сиб-24-1",
+                                  "phone": "", "gender": "", "email": ""})
+    html = client.get("/profile").get_data(as_text=True)
+    assert "Жаңа Есім Студент" in html and "СИБ-24-1" in html
+    client.post("/logout")
+    login(client, "dekanat1", "Dekanat2026")          # декан аты-жөнін профильде өзгертпейді
     assert 'name="full_name"' not in client.get("/profile").get_data(as_text=True)
-    client.post("/profile", data={"action": "info", "full_name": "Бөтен Адам Есімі"})
-    assert "Бөтен Адам Есімі" not in client.get("/profile").get_data(as_text=True)
+
 
 def test_avatar_upload_and_access(client, app):
     login(client, "030512501238", "Student2026")

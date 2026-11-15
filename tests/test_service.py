@@ -221,10 +221,15 @@ def test_register_student_ok():
     assert reg.full_name == "Дана Серікқызы" and reg.group_name == "ЭК-23-2"
 
 
-def test_register_student_requires_group_and_id():
-    _, errors = ql.validate_registration("student", "Дана Серікқызы", "Parol2026",
-                                         "Parol2026", "12", "")
-    assert {"err_iin", "err_group"} <= set(errors)
+def test_register_student_needs_only_name_login_password():
+    """Тіркелуде міндетті: аты-жөні, логин, құпиясөз. Тобы — міндетті емес (профильде)."""
+    reg, errors = ql.validate_registration("student", "Дана Серікқызы", "Parol2026", "Parol2026",
+                                           username="Dana.S")
+    assert errors == [] and reg.username == "dana.s" and reg.student_id == "dana.s" and reg.group_name == ""
+    _, errors = ql.validate_registration("student", "Дана Серікқызы", "Parol2026", "Parol2026", "12", "!!")
+    assert {"err_username", "err_group"} <= set(errors)
+    _, errors = ql.validate_registration("student", "", "Parol2026", "Parol2026", username="dana.s")
+    assert "err_name" in errors
 
 
 def test_register_dekanat_ok_and_username_lowercased():

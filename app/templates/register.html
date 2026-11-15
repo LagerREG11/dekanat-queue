@@ -3,39 +3,19 @@
 {% block content %}
 <section class="box narrow">
   <h1>{{ t('register_title') }}</h1>
-  <div class="tabs">
-    {% for k in roles %}
-      <a class="{{ 'active' if k == kind }}" href="{{ url_for('register', kind=k) }}">{{ t('role_' + k) }}</a>
-    {% endfor %}
-  </div>
-
-  {% if kind != 'student' %}
-    <div class="alert alert-warn">{{ t('staff_needs_approval') }}{% if kind == 'admin' %} {{ t('admin_needs_admin') }}{% elif kind == 'dekanat' %} {{ t('dekan_needs_admin') }}{% endif %}</div>
-  {% endif %}
+  <p class="muted small">{{ t('register_students_only') }}</p>
 
   <form method="post" class="form" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="kind" value="{{ kind }}">
 
     <label for="full_name">{{ t('f_name') }}</label>
     <input id="full_name" name="full_name" required maxlength="80" autocomplete="name"
            placeholder="{{ t('f_name_ph') }}" value="{{ form.get('full_name', '') }}">
 
-    {% if kind == 'student' %}
-      <label for="student_id">{{ t('f_student_id') }}</label>
-      <input id="student_id" name="student_id" required inputmode="numeric" maxlength="12" minlength="12"
-             pattern="[0-9]{12}" autocomplete="off"
-             placeholder="{{ t('f_student_id_ph') }}" value="{{ form.get('student_id', '') }}">
-      <span class="hint">{{ t('student_id_is_login') }}</span>
-
-      <label for="group_name">{{ t('group') }}</label>
-      <input id="group_name" name="group_name" required maxlength="20"
-             placeholder="{{ t('f_group_ph') }}" value="{{ form.get('group_name', '') }}">
-    {% else %}
-      <label for="username">{{ t('f_username') }}</label>
-      <input id="username" name="username" required maxlength="30" autocomplete="username"
-             placeholder="{{ t('f_username_ph') }}" value="{{ form.get('username', '') }}">
-    {% endif %}
+    <label for="username">{{ t('f_username') }}</label>
+    <input id="username" name="username" required maxlength="30" autocomplete="username"
+           placeholder="{{ t('f_username_ph') }}" value="{{ form.get('username', '') }}">
+    <span class="hint">{{ t('register_login_hint') }}</span>
 
     <label for="password">{{ t('f_password') }}</label>
     <input id="password" name="password" type="password" required autocomplete="new-password"
@@ -51,6 +31,6 @@
     </div>
   </form>
   <p class="small center gap-top">{{ t('have_account') }}
-    <a href="{{ url_for('login', role=kind) }}">{{ t('nav_login') }}</a></p>
+    <a href="{{ url_for('login') }}">{{ t('nav_login') }}</a></p>
 </section>
 {% endblock %}
