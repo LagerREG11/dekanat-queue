@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ t('recovery_title') }}{% endblock %}
+{% block content %}
+<section class="box narrow">
+  <h1>{{ t('recovery_title') }}</h1>
+  <p>{{ t('recovery_intro') }}</p>
+  <p class="recovery-code" aria-label="{{ t('recovery_title') }}">{{ code }}</p>
+  <div class="alert alert-warn">{{ t('recovery_once') }}</div>
+  <div class="buttons">
+    {% if user %}
+      <a class="btn btn-primary btn-block" href="{{ url_for('profile') }}">{{ t('nav_profile') }}</a>
+    {% else %}
+      <a class="btn btn-primary btn-block" href="{{ url_for('login') }}">{{ t('nav_login') }}</a>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

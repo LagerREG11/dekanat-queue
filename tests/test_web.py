@@ -136,7 +136,9 @@ def test_student_cannot_post_admin_actions(client, app):
 # ---------------- Тіркелу ----------------
 def test_register_student_and_login(client):
     r = register_student(client)
-    assert r.status_code == 302 and r.headers["Location"].endswith("/login")
+    assert r.status_code == 302 and r.headers["Location"].endswith("/recovery-code")
+    page = client.get("/recovery-code").get_data(as_text=True)          # код бір рет көрсетіледі
+    assert "Қалпына келтіру коды" in page and client.get("/recovery-code").status_code == 302
     r = client.post("/login", data={"username": "050720610008", "password": "Parol2026"})
     assert r.headers["Location"] == "/student"
 

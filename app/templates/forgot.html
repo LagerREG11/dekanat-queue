@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ t('forgot_title') }}{% endblock %}
+{% block content %}
+<section class="box narrow">
+  <h1>{{ t('forgot_title') }}</h1>
+  <p class="muted small">{{ t('forgot_intro') }}</p>
+  <form method="post" class="form" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="username">{{ t('f_username') }}</label>
+    <input id="username" name="username" required maxlength="40" autocomplete="username" value="{{ form.get('username', '') }}">
+    <label for="code">{{ t('recovery_title') }}</label>
+    <input id="code" name="code" required maxlength="20" autocomplete="off" placeholder="XXXX-XXXX-XXXX" value="{{ form.get('code', '') }}">
+    <label for="password">{{ t('f_new_password') }}</label>
+    <input id="password" name="password" type="password" required autocomplete="new-password"
+           minlength="8" maxlength="16" data-strength="pw-meter">
+    {% include "_pw_meter.html" %}
+    <span class="hint">{{ t('password_rules') }}</span>
+    <label for="password2">{{ t('f_password2') }}</label>
+    <input id="password2" name="password2" type="password" required autocomplete="new-password">
+    <div class="buttons"><button class="btn btn-primary btn-block" type="submit">{{ t('forgot_submit') }}</button></div>
+  </form>
+  <div class="alert alert-info gap-top">{{ t('forgot_no_code') }}</div>
+  <p class="small center gap-top"><a href="{{ url_for('login') }}">{{ t('nav_login') }}</a></p>
+</section>
+{% endblock %}

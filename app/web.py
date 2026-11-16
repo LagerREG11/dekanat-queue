@@ -549,9 +549,10 @@ def _register_auth_routes(app: Flask) -> None:
                 errors = ["err_rate"]
             if not errors:
                 try:
-                    repo.register(db(), reg, now())
+                    uid = repo.register(db(), reg, now())
+                    session["new_recovery_code"] = repo.set_recovery_code(db(), uid, now())
                     flash("msg_registered_student", "ok")
-                    return redirect(url_for("login"))
+                    return redirect(url_for("recovery_code"))
                 except ql.QueueError as e:
                     errors = [e.code]
             for err in errors:
@@ -583,10 +584,59 @@ def _register_login_routes(app: Flask) -> None:
                 if user["role"] in ql.STAFF_ROLES:
                     repo.set_on_duty(db(), user["id"], True)
                 repo.log(db(), user["id"], "login", user["role"], now())
+                if user["must_change"]:
+                    flash("msg_must_change", "error")
+                    return redirect(url_for("profile"))
                 default = url_for(ROLE_HOME[user["role"]])
                 return redirect(safe_next(request.form.get("next"), default))
         return render_template("login.html")
 
+
+
+def _register_recovery_routes(app: Flask) -> None:
+    @app.get("/recovery-code")
+    def recovery_code():
+        """Жаңа қалпына келтіру кодын бір рет көрсету (тіркелгеннен не код жаңартылғаннан кейін)."""
+        code = session.pop("new_recovery_code", None)
+        if not code:
+            return redirect(url_for("profile" if current_user() else "login"))
+        return render_template("recovery_code.html", code=code)
+
+    @app.post("/profile/recovery")
+    @role_required(*ql.ROLES)
+    def profile_recovery():
+        session["new_recovery_code"] = repo.set_recovery_code(db(), current_user()["id"], now())
+        return redirect(url_for("recovery_code"))
+
+    @app.route("/forgot", methods=["GET", "POST"])
+    def forgot():
+        """Құпиясөзді ұмыттым: логин + қалпына келтіру коды + жаңа құпиясөз."""
+        f = request.form
+        if request.method == "POST":
+            if rate_limited("login", app.config["LOGIN_LIMIT"]):
+                flash("err_rate", "error")
+                return render_template("forgot.html", form=f), 429
+            try:
+                session["new_recovery_code"] = repo.reset_with_recovery(
+                    db(), f.get("username"), f.get("code"), f.get("password"), f.get("password2"), now())
+                flash("msg_password_reset", "ok")
+                return redirect(url_for("recovery_code"))
+            except ql.QueueError as e:
+                flash_error(e)
+        return render_template("forgot.html", form=f)
+
+
+def _register_must_change_guard(app: Flask) -> None:
+    @app.before_request
+    def require_password_change():
+        """Әкімші уақытша құпиясөз берсе — ауыстырмайынша тек профиль ашылады."""
+        user = current_user()
+        allowed = {"profile", "logout", "static", "set_lang", "profile_avatar", "avatar", "recovery_code"}
+        if user is not None and user["must_change"] and request.endpoint not in allowed:
+            if request.path.startswith("/api/"):
+                return jsonify(error=t("msg_must_change")), 403
+            flash("msg_must_change", "error")
+            return redirect(url_for("profile"))
 
 
 def _register_logout_routes(app: Flask) -> None:
@@ -1191,6 +1241,8 @@ ROUTE_GROUPS = (
     _register_avatar_view_routes,
     _register_admin_announcement_routes,
     _register_report_routes,
+    _register_recovery_routes,
+    _register_must_change_guard,
     _register_cli,
 )
 

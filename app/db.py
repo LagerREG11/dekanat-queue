@@ -149,6 +149,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     _migrate_users(conn)
     conn.executescript(SCHEMA)
     _add_profile_columns(conn)
+    _add_security_columns(conn)
 
 
 def _add_profile_columns(conn: sqlite3.Connection) -> None:
@@ -157,6 +158,15 @@ def _add_profile_columns(conn: sqlite3.Connection) -> None:
     for col in PROFILE_COLUMNS:
         if col not in cols:
             conn.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
+
+
+def _add_security_columns(conn: sqlite3.Connection) -> None:
+    """Қалпына келтіру коды (хэші) мен «құпиясөзді ауыстыру міндетті» белгісі."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(users)")}
+    if "recovery_hash" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN recovery_hash TEXT NOT NULL DEFAULT ''")
+    if "must_change" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0")
 
 
 def _migrate_users(conn: sqlite3.Connection) -> None:
@@ -485,9 +495,35 @@ def change_password(conn, user_id: int, old: str, new: str, new2: str, now: date
     errors = ql.validate_password(new, new2)
     if errors:
         raise ql.QueueError(errors[0])
-    conn.execute("UPDATE users SET password_hash=? WHERE id=?",
+    conn.execute("UPDATE users SET password_hash=?, must_change=0 WHERE id=?",
                  (generate_password_hash(new), user_id))
     log(conn, user_id, "change_password", "", now)
+
+
+def set_recovery_code(conn, user_id: int, now: datetime) -> str:
+    """Жаңа қалпына келтіру кодын жасап, тек хэшін сақтайды; кодтың өзін бір рет қайтарады."""
+    code = ql.generate_recovery_code()
+    conn.execute("UPDATE users SET recovery_hash=? WHERE id=?",
+                 (generate_password_hash(ql.normalize_recovery_code(code)), user_id))
+    log(conn, user_id, "recovery_code", "", now)
+    return code
+
+
+def reset_with_recovery(conn, username: str, code: str, new: str, new2: str, now: datetime) -> str:
+    """Логин + қалпына келтіру коды арқылы жаңа құпиясөз. Код бір реттік: жаңасын қайтарады."""
+    user = conn.execute("SELECT * FROM users WHERE username=?",
+                        ((username or "").strip().lower(),)).fetchone()
+    ok = (user is not None and user["recovery_hash"] and user["is_active"]
+          and check_password_hash(user["recovery_hash"], ql.normalize_recovery_code(code)))
+    if not ok:
+        raise ql.QueueError("err_recovery")  # логин не код — қайсысы қате екенін айтпаймыз
+    errors = ql.validate_password(new, new2)
+    if errors:
+        raise ql.QueueError(errors[0])
+    conn.execute("UPDATE users SET password_hash=?, must_change=0 WHERE id=?",
+                 (generate_password_hash(new), user["id"]))
+    log(conn, user["id"], "reset_by_code", user["username"], now)
+    return set_recovery_code(conn, user["id"], now)
 
 
 def force_set_password(conn, username: str, password: str, now: datetime) -> None:
@@ -577,7 +613,8 @@ def admin_reset_password(conn, admin_id: int, user_id: int, new: str, now: datet
     errors = ql.validate_password(new)
     if errors:
         raise ql.QueueError(errors[0])
-    conn.execute("UPDATE users SET password_hash=? WHERE id=?",
+    # Уақытша құпиясөз: пайдаланушы келесі кіргенде оны өзі ауыстыруы міндетті
+    conn.execute("UPDATE users SET password_hash=?, must_change=1 WHERE id=?",
                  (generate_password_hash(new), user_id))
     log(conn, admin_id, "reset_password", target["username"], now)
 

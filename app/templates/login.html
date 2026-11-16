@@ -11,6 +11,7 @@
            placeholder="{{ t('f_login_ph') }}">
     <label for="password">{{ t('f_password') }}</label>
     <input id="password" name="password" type="password" required autocomplete="current-password">
+    <p class="small"><a href="{{ url_for('forgot') }}">{{ t('forgot_link') }}</a></p>
     <div class="buttons">
       <button class="btn btn-primary btn-block" type="submit">{{ t('f_login') }}</button>
     </div>

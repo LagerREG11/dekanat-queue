@@ -726,6 +726,24 @@ def validate_room(value) -> str | None:
     return room
 
 
+RECOVERY_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # шатастыратын 0/O, 1/I/L жоқ
+RECOVERY_GROUPS = 3
+RECOVERY_GROUP_LEN = 4
+
+
+def generate_recovery_code() -> str:
+    """Қалпына келтіру коды, мысалы «K7M4-P2XQ-9TRA» (кездейсоқ, secrets модулімен)."""
+    import secrets
+    groups = ["".join(secrets.choice(RECOVERY_ALPHABET) for _ in range(RECOVERY_GROUP_LEN))
+              for _ in range(RECOVERY_GROUPS)]
+    return "-".join(groups)
+
+
+def normalize_recovery_code(code: str) -> str:
+    """Енгізілген кодты салыстыруға дайындау: бос орын мен сызықшасыз, бас әріппен."""
+    return re.sub(r"[^0-9A-Za-z]", "", code or "").upper()
+
+
 def validate_full_name(full_name: str) -> str:
     """Аты-жөнін тексереді (тіркелудегі ереже бойынша)."""
     full_name = " ".join((full_name or "").split())

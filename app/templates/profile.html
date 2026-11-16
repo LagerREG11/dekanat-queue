@@ -96,4 +96,12 @@
   </section>
 </div>
 <div class="actions"><a class="btn btn-primary" href="{{ url_for(role_home[user.role]) }}">{{ t('go_cabinet') }}</a></div>
+<section class="box">
+  <h2 class="box-title">{{ t('recovery_title') }}</h2>
+  <p class="muted small">{{ t('recovery_profile_hint') }}</p>
+  <form method="post" action="{{ url_for('profile_recovery') }}" data-confirm="{{ t('recovery_confirm') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn" type="submit">{{ t('recovery_new') }}</button>
+  </form>
+</section>
 {% endblock %}

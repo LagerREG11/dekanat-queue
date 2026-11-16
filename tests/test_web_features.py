@@ -305,3 +305,54 @@ def test_chat_whoami_and_my_ticket_with_login(client):
     assert "A-001" in r["reply"] and "алдыңызда 0 адам" in r["reply"]
     r = client.post("/api/chat", json={"message": "Где находится деканат?"}).get_json()
     assert "пр. Абая" in r["reply"]                       # мекенжай сұрақ тілінде
+
+
+# ---------------- Құпиясөзді қалпына келтіру ----------------
+def _register_and_get_code(client, login="aigerim.s"):
+    import re as _re
+    client.post("/register", data={"full_name": "Айгерім Сәрсенова", "username": login,
+                                   "password": "Aigerim#2026", "password2": "Aigerim#2026"})
+    page = client.get("/recovery-code").get_data(as_text=True)
+    return _re.search(r'class="recovery-code"[^>]*>([A-Z0-9-]+)<', page).group(1)
+
+
+def test_forgot_password_with_recovery_code(client):
+    code = _register_and_get_code(client)
+    assert "Құпиясөзді ұмыттыңыз ба?" in client.get("/login").get_data(as_text=True)
+    bad = client.post("/forgot", data={"username": "aigerim.s", "code": "AAAA-BBBB-CCCC",
+                                       "password": "Newpass#26", "password2": "Newpass#26"})
+    assert "Логин не қалпына келтіру коды қате" in bad.get_data(as_text=True)
+    r = client.post("/forgot", data={"username": "aigerim.s", "code": code.lower().replace("-", " "),
+                                     "password": "Newpass#26", "password2": "Newpass#26"})
+    assert r.headers["Location"].endswith("/recovery-code")
+    new_page = client.get("/recovery-code").get_data(as_text=True)
+    assert code not in new_page                                        # жаңа код берілді
+    r = client.post("/login", data={"username": "aigerim.s", "password": "Newpass#26"})
+    assert r.headers["Location"].endswith("/student")
+    client.post("/logout")
+    again = client.post("/forgot", data={"username": "aigerim.s", "code": code,
+                                         "password": "Other#2026x", "password2": "Other#2026x"})
+    assert "коды қате" in again.get_data(as_text=True)                 # ескі код бір реттік
+
+
+def test_new_recovery_code_from_profile(client):
+    code = _register_and_get_code(client, "dana.k")
+    client.post("/login", data={"username": "dana.k", "password": "Aigerim#2026"})
+    assert "Жаңа код жасау" in client.get("/profile").get_data(as_text=True)
+    r = client.post("/profile/recovery")
+    assert r.headers["Location"].endswith("/recovery-code")
+    assert code not in client.get("/recovery-code").get_data(as_text=True)
+
+
+def test_temporary_password_must_be_changed(client, app):
+    client.post("/login", data={"username": "admin", "password": "Admin2026"})
+    uid = app.extensions["db"].execute("SELECT id FROM users WHERE username='zamdekan'").fetchone()[0]
+    client.post(f"/admin/users/{uid}/password", data={"password": "Temp#2026x"})
+    client.post("/logout")
+    r = client.post("/login", data={"username": "zamdekan", "password": "Temp#2026x"})
+    assert r.headers["Location"].endswith("/profile")
+    assert client.get("/admin").headers["Location"].endswith("/profile")   # басқа беттер жабық
+    assert client.get("/api/staff/queue").status_code == 403
+    client.post("/profile", data={"action": "password", "old_password": "Temp#2026x",
+                                  "password": "Mine#2026x", "password2": "Mine#2026x"})
+    assert client.get("/admin").status_code == 200
