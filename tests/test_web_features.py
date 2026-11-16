@@ -288,3 +288,9 @@ def test_staff_sets_own_auditorium_in_profile(client):
     client.post("/logout")
     client.post("/login", data={"username": "030512501238", "password": "Student2026"})
     assert 'name="window_no"' not in client.get("/profile").get_data(as_text=True)
+
+
+def test_student_cabinet_shows_login_not_iin(client):
+    client.post("/login", data={"username": "030512501238", "password": "Student2026"})
+    html = client.get("/student").get_data(as_text=True)
+    assert "ЖСН (ИИН)" not in html and "логин 030512501238" in html

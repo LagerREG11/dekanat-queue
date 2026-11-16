@@ -27,7 +27,7 @@
     {% if current %}
       <div class="current-number">{{ current.number }}</div>
       <p><b>{{ current.full_name }}</b>{% if current.group_name %}, {{ current.group_name }}{% endif %}<br>
-        <span class="muted">{{ current['name_' + lang] }}, ID {{ current.student_id }}</span>
+        <span class="muted">{{ current['name_' + lang] }}, {{ t('f_username') | lower }} {{ current.student_id }}</span>
         {% if current.priority %}<span class="tag tag-warn">{{ t('priority') }}</span>{% endif %}</p>
       <div class="actions">
         {% for action, label, cls in [('done', 'op_done', 'btn-primary'), ('no_show', 'op_no_show', 'btn-danger'),

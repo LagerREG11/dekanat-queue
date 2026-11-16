@@ -3,7 +3,7 @@
 {% block body_attrs %}data-page="student" data-api="{{ url_for('api_student_tickets') }}"{% endblock %}
 {% block content %}
 <h1 class="page-title">{{ t('student_cabinet') }}</h1>
-<p class="page-sub">{{ user.full_name }}, {{ t('group') | lower }} {{ user.group_name }}, {{ t('f_student_id') }} {{ user.student_id }}</p>
+<p class="page-sub">{{ user.full_name }}{% if user.group_name %}, {{ t('group') | lower }} {{ user.group_name }}{% endif %}, {{ t('f_username') | lower }} {{ user.username }}</p>
 
 <div class="cols">
   <section class="box">
