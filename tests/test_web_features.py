@@ -294,3 +294,14 @@ def test_student_cabinet_shows_login_not_iin(client):
     client.post("/login", data={"username": "030512501238", "password": "Student2026"})
     html = client.get("/student").get_data(as_text=True)
     assert "ЖСН (ИИН)" not in html and "логин 030512501238" in html
+
+
+def test_chat_whoami_and_my_ticket_with_login(client):
+    client.post("/login", data={"username": "030512501238", "password": "Student2026"})
+    client.post("/student/ticket", data={"service_id": "1"})
+    r = client.post("/api/chat", json={"message": "мен кіммін"}).get_json()
+    assert "рөліңіз: Студент" in r["reply"] and "030512501238" in r["reply"]
+    r = client.post("/api/chat", json={"message": "менің кезегім қашан"}).get_json()
+    assert "A-001" in r["reply"] and "алдыңызда 0 адам" in r["reply"]
+    r = client.post("/api/chat", json={"message": "Где находится деканат?"}).get_json()
+    assert "пр. Абая" in r["reply"]                       # мекенжай сұрақ тілінде

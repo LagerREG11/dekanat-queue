@@ -465,16 +465,60 @@ def _register_chat_routes(app: Flask) -> None:
             return jsonify(error=t("err_rate")), 429
         data = request.get_json(silent=True) or {}
         message = str(data.get("message", ""))[:chatbot.MAX_MESSAGE_LEN]
-        uni = university_info.localized(lang())
-        ctx = {"schedule": schedule_info(), "services": repo.services_overview(db(), now()),
-               "contacts": {"main": uni["contacts"]["main_building"],
-                            "b5": uni["building5"]["address"],
-                            "phone": uni["contacts"]["phone"],
-                            "admission": uni["contacts"]["admission_phone"],
-                            "email": uni["contacts"]["email"]}}
-        result = chatbot.answer(message, lang(), ctx)
+        result = chatbot.answer(message, lang(), _chat_context())
         return jsonify(reply=result["reply"], suggestions=result["suggestions"])
 
+
+
+def _day_info(d) -> dict:
+    """Чат үшін күн жоспары: түрі (жұмыс/қысқа/демалыс/мереке), уақыты, ескертуі."""
+    plan = ql.day_plan(d, schedule(), overrides())
+    s = plan.schedule
+    note = plan.note or (plan.holiday[0 if lang() == "kk" else 1] if plan.holiday else "")
+    return {"kind": plan.kind, "note": note,
+            "hours": f"{s.open_at:%H:%M}–{s.close_at:%H:%M}" if s else ""}
+
+
+def _my_tickets_for_chat() -> list[dict] | None:
+    """Кірген студенттің бүгінгі белсенді талондары; студент кірмесе — None."""
+    user = current_user()
+    if user is None or user["role"] != ql.STUDENT:
+        return None
+    today = now().strftime("%Y-%m-%d")
+    out = []
+    for tk in repo.user_tickets(db(), user["id"]):
+        if tk["day"] == today and tk["status"] in ql.ACTIVE_STATUSES:
+            v = _ticket_view(tk)
+            out.append({"number": tk["number"], "status": tk["status"], "ahead": v["ahead"],
+                        "estimate": v["estimate"], "window": tk["window_no"],
+                        "service_kk": tk["name_kk"], "service_ru": tk["name_ru"]})
+    return out
+
+
+def _chat_contacts(code: str) -> dict:
+    uni = university_info.localized(code)
+    return {"main": uni["contacts"]["main_building"], "b5": uni["building5"]["address"],
+            "phone": uni["contacts"]["phone"], "admission": uni["contacts"]["admission_phone"],
+            "email": uni["contacts"]["email"]}
+
+
+def _chat_me() -> dict | None:
+    user = current_user()
+    if user is None:
+        return None
+    role = "role_" + user["role"]
+    return {"name": user["full_name"], "login": user["username"],
+            "role_kk": translate(role, "kk"), "role_ru": translate(role, "ru")}
+
+
+def _chat_context() -> dict:
+    today = now().date()
+    return {"me": _chat_me(), "schedule": schedule_info(), "services": repo.services_overview(db(), now()),
+            "contacts": _chat_contacts(lang()),
+            "contacts_kk": _chat_contacts("kk"), "contacts_ru": _chat_contacts("ru"),
+            "my_tickets": _my_tickets_for_chat(), "today": _day_info(today),
+            "tomorrow": _day_info(today + timedelta(days=1)),
+            "announcements": [a["text"] for a in repo.active_announcements(db(), now())]}
 
 
 def _register_board_routes(app: Flask) -> None:

@@ -79,3 +79,56 @@ def test_long_message_is_truncated():
 def test_html_is_not_echoed():
     r = chatbot.answer("<script>alert(1)</script> талон", "kk", CTX)
     assert "<script>" not in r["reply"]
+
+
+# ---------------- Жақсартылған чат-бот ----------------
+def test_language_detected_from_question():
+    assert chatbot.answer("Где находится деканат?", "kk", CTX)["lang"] == "ru"
+    assert "учебном корпусе" in chatbot.answer("Где находится деканат?", "kk", CTX)["reply"]
+    assert chatbot.answer("Деканат қайда?", "ru", CTX)["lang"] == "kk"
+    assert chatbot.answer("талон", "ru", CTX)["lang"] == "ru"          # анық белгі жоқ — бет тілі
+
+
+def test_typos_are_understood():
+    assert chatbot.detect_intent("рахмат") == "thanks"
+    assert chatbot.detect_intent("рассписание графк работы") == "hours"
+    assert chatbot.detect_intent("рагистрация") == "register"
+
+
+def test_my_ticket_reply_states():
+    assert "кіріңіз" in chatbot.answer("менің кезегім қашан", "kk", CTX)["reply"]
+    ctx = dict(CTX, my_tickets=[])
+    assert "белсенді талоныңыз жоқ" in chatbot.answer("менің талоным", "kk", ctx)["reply"]
+    ctx = dict(CTX, my_tickets=[{"number": "A-004", "status": "waiting", "ahead": 2, "estimate": 8,
+                                 "window": None, "service_kk": "Анықтама", "service_ru": "Справка"}])
+    assert "A-004 (Анықтама): алдыңызда 2 адам, шамамен 8 мин" in chatbot.answer("менің кезегім", "kk", ctx)["reply"]
+    ctx["my_tickets"][0].update(status="called", window="214А")
+    assert "Пройдите в аудиторию 214А" in chatbot.answer("когда моя очередь", "ru", ctx)["reply"]
+
+
+def test_today_tomorrow_services_announcements_help():
+    ctx = dict(CTX, today={"kind": "work", "hours": "09:00–18:00", "note": ""},
+               tomorrow={"kind": "holiday", "hours": "", "note": "Тәуелсіздік күні"},
+               announcements=["13:00-ден кейін декан жиналыста."])
+    assert "Бүгін деканат жұмыс істейді: 09:00–18:00" in chatbot.answer("бүгін жұмыс істей ме", "kk", ctx)["reply"]
+    assert "мереке" in chatbot.answer("ертең жұмыс істей ме", "kk", ctx)["reply"]
+    assert "Завтра праздник" in chatbot.answer("работает ли деканат завтра", "ru", ctx)["reply"]
+    assert "Анықтама алу" in chatbot.answer("қандай қызметтер бар", "kk", ctx)["reply"]
+    assert "декан жиналыста" in chatbot.answer("хабарландыру бар ма", "kk", ctx)["reply"]
+    assert "хабарландыру жоқ" in chatbot.answer("хабарландыру", "kk", CTX)["reply"]
+    assert "талонды қалай алу" in chatbot.answer("көмек", "kk", CTX)["reply"]
+
+
+def test_follow_up_suggestions_depend_on_topic():
+    r = chatbot.answer("талон алу", "kk", CTX)
+    assert r["suggestions"][0] == "Менің кезегім қашан?"
+
+
+def test_about_and_whoami():
+    for q in ("электронды кезек туралы айтшы", "бұл не сайт?", "что это за сайт"):
+        assert chatbot.detect_intent(q) == "about", q
+    assert "электрондық кезегі" in chatbot.answer("бұл не сайт?", "kk", CTX)["reply"]
+    assert "кірген жоқсыз" in chatbot.answer("мен кіммін", "kk", CTX)["reply"]
+    ctx = dict(CTX, me={"name": "Темірлан Бегайдаров", "login": "begaydarovv", "role_kk": "Студент", "role_ru": "Студент"})
+    assert "Темірлан Бегайдаров" in chatbot.answer("мен кіммін", "kk", ctx)["reply"]
+    assert "логин: begaydarovv" in chatbot.answer("кто я", "ru", ctx)["reply"]

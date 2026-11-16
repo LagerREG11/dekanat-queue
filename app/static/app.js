@@ -303,9 +303,30 @@
     const sugg = document.getElementById("chat-sugg");
     const openBtn = document.getElementById("chat-toggle");
 
-    function add(text, mine) {
+    // Сөйлесу тарихы бет ауысқанда жоғалмайды (тек осы браузер қойындысында сақталады)
+    const HISTORY_KEY = "chat-history-v1";
+    let history = [];
+    try { history = JSON.parse(sessionStorage.getItem(HISTORY_KEY) || "[]"); } catch (e) { history = []; }
+
+    function add(text, mine, restoring) {
       log.appendChild(el("div", text, "chat-msg" + (mine ? " me" : "")));
       log.scrollTop = log.scrollHeight;
+      if (restoring) return;
+      history.push({ t: text, me: !!mine });
+      history = history.slice(-30);
+      try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch (e) { /* міндетті емес */ }
+    }
+    history.forEach(function (m) { add(m.t, m.me, true); });
+
+    function typing(on) {
+      const old = log.querySelector(".chat-typing");
+      if (old) old.remove();
+      if (on) {
+        const dots = el("div", "…", "chat-msg chat-typing");
+        dots.setAttribute("aria-hidden", "true");
+        log.appendChild(dots);
+        log.scrollTop = log.scrollHeight;
+      }
     }
 
     function showSuggestions(list) {
@@ -331,9 +352,10 @@
       if (!text) return;
       add(text, true);
       input.value = "";
+      typing(true);
       ask(text)
-        .then(function (d) { add(d.reply || d.error || chat.dataset.error); showSuggestions(d.suggestions); })
-        .catch(function () { add(chat.dataset.error); });
+        .then(function (d) { typing(false); add(d.reply || d.error || chat.dataset.error); showSuggestions(d.suggestions); })
+        .catch(function () { typing(false); add(chat.dataset.error); });
     }
 
     openBtn.addEventListener("click", function () {

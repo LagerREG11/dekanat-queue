@@ -541,3 +541,8 @@ table.calendar { width: 100%; border-collapse: separate; border-spacing: 4px; ta
   border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; }
 .report-form .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
 .btn-sound { margin-left: auto; margin-right: 12px; }
+
+/* Чат: «жазып жатыр…» белгісі */
+.chat-typing { opacity: .6; letter-spacing: 3px; animation: chat-blink 1s infinite; }
+@keyframes chat-blink { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .chat-typing { animation: none; } }
