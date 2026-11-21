@@ -141,8 +141,10 @@
     function announce(c) {
       const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
       const useKk = body.dataset.lang === "kk" && voices.some(function (v) { return /^kk/i.test(v.lang); });
-      const tpl = useKk ? body.dataset.sayKk : body.dataset.sayRu;
-      say(tpl.replace("{n}", spokenNumber(c.number)).replace("{w}", c.window_no), useKk ? "kk-KZ" : "ru-RU");
+      const useEn = body.dataset.lang === "en";
+      const tpl = useEn ? body.dataset.sayEn : (useKk ? body.dataset.sayKk : body.dataset.sayRu);
+      const code = useEn ? "en-US" : (useKk ? "kk-KZ" : "ru-RU");
+      say(tpl.replace("{n}", spokenNumber(c.number)).replace("{w}", c.window_no), code);
     }
     if (soundBtn) {
       soundBtn.addEventListener("click", function () {

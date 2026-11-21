@@ -43,8 +43,18 @@ def test_language_switch_to_ru(client):
 
 
 def test_language_switch_unknown_ignored(client):
-    html = client.get("/lang/en?next=/", follow_redirects=True).get_data(as_text=True)
+    html = client.get("/lang/de?next=/", follow_redirects=True).get_data(as_text=True)
     assert "Деканаттың электрондық кезегі" in html
+
+
+def test_english_language(client):
+    html = client.get("/lang/en?next=/", follow_redirects=True).get_data(as_text=True)
+    assert 'lang="en"' in html and "Office Electronic Queue" in html and "Certificate" in html
+    assert "Korkyt Ata Kyzylorda University" in html and ">EN<" in html
+    login_html = client.get("/login").get_data(as_text=True)
+    assert "Forgot your password?" in login_html
+    from app.i18n import TRANSLATIONS
+    assert set(TRANSLATIONS["kk"]) <= set(TRANSLATIONS["en"])            # барлық кілт аударылған
 
 
 @pytest.mark.parametrize("nxt", ["https://evil.example", "//evil.example", "/\\evil.example"])
@@ -84,7 +94,7 @@ def test_login_single_form_without_role_tabs(client):
 
 def test_wrong_password(client):
     html = login(client, "student", password="bad").get_data(as_text=True)
-    assert "Логин (ЖСН) немесе құпиясөз қате" in html
+    assert "Логин немесе құпиясөз қате" in html
 
 
 def test_login_works_from_any_tab(client):

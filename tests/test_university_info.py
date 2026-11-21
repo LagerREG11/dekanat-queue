@@ -16,7 +16,9 @@ def test_localized_has_all_sections(lang):
 
 
 def test_unknown_language_falls_back_to_kk():
-    assert ui.localized("en")["about"] == ui.ABOUT["kk"]
+    assert ui.localized("de")["about"] == ui.ABOUT["kk"]
+    en = ui.localized("en")
+    assert en["about"].startswith("Korkyt Ata Kyzylorda University") and len(en["history"]) == len(ui.HISTORY)
 
 
 def test_both_languages_have_same_structure():

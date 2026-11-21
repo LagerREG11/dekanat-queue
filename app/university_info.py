@@ -216,8 +216,67 @@ def partner_totals() -> tuple[int, int]:
     return len(PARTNER_COUNTRIES), sum(c["n"] for c in PARTNER_COUNTRIES)
 
 
+# Ағылшынша нұсқа: әр тізім жоғарыдағы деректермен бірдей ретте
+EN = {
+    "main_building": "Kyzylorda, 29A Aiteke Bi St. (main building, rectorate)",
+    "facts": ["year founded", "academic buildings", "students (2024–2025 academic year)",
+              "students admitted in 2025–2026", "educational programmes", "institutes"],
+    "about": ("Korkyt Ata Kyzylorda University is the largest multidisciplinary university of the Aral Sea region, "
+              "a centre not only of education and science but also of the region's spiritual and cultural life. "
+              "The university is named after Korkyt Ata, the great thinker of the steppe. It trains specialists in "
+              "bachelor's, master's and doctoral programmes. About 80% of specialists in the regional economy are its "
+              "graduates. Since 2020 the university has operated as a non-profit joint-stock company."),
+    "institutes": ["Humanitarian and Pedagogical Institute", "Institute of Pedagogy and Traditional Art",
+                   "Institute of Natural Sciences", "Institute of Engineering and Technology",
+                   "Institute of Economics and Law"],
+    "history": [
+        "Kyzylorda Pedagogical Institute opened on the basis of the Korean Pedagogical Institute moved from the Far East: 4 faculties, 372 students, 27 teachers.",
+        "During the war, the evacuated Kyiv and Kharkiv universities worked on the institute's premises.",
+        "The pedagogical institute was named after N. V. Gogol.",
+        "The Kyzylorda branch of the Dzhambul Hydro-Reclamation and Construction Institute opened (later the I. Zhakhaev Polytechnic Institute).",
+        "The pedagogical institute was named after Korkyt Ata.",
+        "Reorganised into Korkyt Ata Kyzylorda Humanitarian University.",
+        "The humanitarian university and the I. Zhakhaev Polytechnic Institute merged into Korkyt Ata Kyzylorda State University.",
+        "Reorganised into the non-profit JSC “Korkyt Ata Kyzylorda University”.",
+    ],
+    "b5_address": "Kyzylorda, 66A Abai Ave. (now 15 N. Nazarbayev Ave.)",
+    "b5_intro": ("Academic building No. 5 is one of the university's main buildings for IT and digital technologies. "
+                 "Since 2023 large-scale reconstruction and improvement work has been under way here to create a modern, "
+                 "comfortable environment for students and staff."),
+    "b5_features": ["10 computer classrooms (Intel Core i5, 8–16 GB RAM)",
+                    "Lab No. 321 “3D printing”: 3D printers and a 3D scanner (course “Fundamentals of 3D Technologies”)",
+                    "Robotics lab No. 316: Turtlebot3, LEGO Mindstorms EV3, Ultimate Robot Kit, quadcopters",
+                    "Lab with a safety net for free drone flights: for master's and diploma research",
+                    "Reconstruction and improvement started in 2023"],
+    "mobility": ("In the autumn semester of the 2025–2026 academic year, students continue their studies at universities "
+                 "in South Korea, Belgium, Poland, Turkey, Uzbekistan, Azerbaijan and Kyrgyzstan."),
+}
+EN_COUNTRY = {"Оңтүстік Корея": "South Korea", "Польша": "Poland", "Бельгия": "Belgium", "Түркия": "Turkey",
+              "Ресей": "Russia", "Литва": "Lithuania", "Италия": "Italy", "Ұлыбритания": "United Kingdom",
+              "Франция": "France", "Қырғызстан": "Kyrgyzstan", "Өзбекстан": "Uzbekistan", "Әзірбайжан": "Azerbaijan",
+              "Индонезия": "Indonesia"}
+
+
+def _localized_en() -> dict:
+    """Ағылшынша деректер: мәтіндер EN-нен, қалғаны (сандар, атаулар) ортақ."""
+    data = localized("ru")
+    data["about"] = EN["about"]
+    data["facts"] = [{"value": f["value"], "label": label} for f, label in zip(FACTS, EN["facts"])]
+    data["institutes"] = EN["institutes"]
+    data["history"] = [{"year": h["year"], "text": text} for h, text in zip(HISTORY, EN["history"])]
+    data["contacts"] = {**CONTACTS, "main_building": EN["main_building"]}
+    data["building5"] = {**data["building5"], "address": EN["b5_address"], "intro": EN["b5_intro"],
+                         "features": [{"text": f} for f in EN["b5_features"]]}
+    data["featured_partners"] = [{"name": p["name"], "country": EN_COUNTRY.get(p["country"]["kk"], p["country"]["ru"]),
+                                  "text": ""} for p in FEATURED_PARTNERS]
+    data["mobility"] = EN["mobility"]
+    return data
+
+
 def localized(lang: str) -> dict:
     """Шаблонға беруге дайын, бір тілге аударылған деректер."""
+    if lang == "en":
+        return _localized_en()
     lang = lang if lang in ("kk", "ru") else "kk"
 
     def pick(value):

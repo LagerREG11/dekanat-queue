@@ -65,7 +65,8 @@ def _default_config() -> dict:
         "RATE_LIMIT": 5,            # бір IP-ден минутына неше талон / тіркелу
         "LOGIN_LIMIT": 10,          # бір IP-ден минутына неше кіру әрекеті
         "NOW": _local_clock(os.environ.get("APP_TIMEZONE", DEFAULT_TIMEZONE)),  # тесттерде ауыстырылады
-        "PUBLIC_URL": os.environ.get("PUBLIC_URL", ""),  # QR-кодтағы мекенжай (телефондар үшін)
+        # QR-кодтағы мекенжай: әдепкіде интернеттегі сайт — кез келген телефоннан ашылады
+        "PUBLIC_URL": os.environ.get("PUBLIC_URL", SITE_URL),
         "MAX_CONTENT_LENGTH": 3 * 1024 * 1024,  # сұрау көлемі (сурет жүктеу үшін) 3 МБ-тан аспайды
         "TESTING": False,
     }
@@ -149,11 +150,14 @@ def t(key: str) -> str:
     return translate(key, lang())
 
 
+SITE_URL = "https://begaydarovv.pythonanywhere.com/"
+
+
 def public_url() -> str:
     """Телефоннан ашуға болатын сайт мекенжайы (QR-код үшін).
 
-    Сервер Wi-Fi желісіне ашылған болса (--lan), іске қосу кезінде анықталған мекенжай
-    қолданылады; әйтпесе браузер ашқан мекенжай алынады.
+    Әдепкіде — интернеттегі сайт (SITE_URL). Жергілікті Wi-Fi мекенжайы тек QR_LAN=1 болғанда
+    қолданылады: ол телефон сол желіде болып, ноутбукта сервер жұмыс істегенде ғана ашылады.
     """
     return current_app.config.get("PUBLIC_URL") or request.host_url
 
@@ -328,7 +332,7 @@ def calendar_view() -> dict:
     """Ағымдағы айдың күнтізбесі (басты бет үшін)."""
     n = now()
     weeks = ql.month_calendar(n.year, n.month, n.date(), schedule(), overrides())
-    idx = 0 if lang() == "kk" else 1
+    idx = LANGUAGES.index(lang())  # мереке атауы: kk, ru, en
     for week in weeks:
         for cell in week:
             if cell is None:
@@ -474,7 +478,7 @@ def _day_info(d) -> dict:
     """Чат үшін күн жоспары: түрі (жұмыс/қысқа/демалыс/мереке), уақыты, ескертуі."""
     plan = ql.day_plan(d, schedule(), overrides())
     s = plan.schedule
-    note = plan.note or (plan.holiday[0 if lang() == "kk" else 1] if plan.holiday else "")
+    note = plan.note or (plan.holiday[LANGUAGES.index(lang())] if plan.holiday else "")
     return {"kind": plan.kind, "note": note,
             "hours": f"{s.open_at:%H:%M}–{s.close_at:%H:%M}" if s else ""}
 
@@ -1271,7 +1275,8 @@ def main() -> None:
     if host == "0.0.0.0":
         ips = local_ips()
         if ips:
-            config["PUBLIC_URL"] = os.environ.get("PUBLIC_URL") or f"http://{ips[0]}:{port}/"
+            if os.environ.get("QR_LAN") == "1":  # әдепкіде QR интернеттегі сайтқа апарады
+                config["PUBLIC_URL"] = os.environ.get("PUBLIC_URL") or f"http://{ips[0]}:{port}/"
             print(" * Телефоннан ашу (телефон осы Wi-Fi желісінде болуы керек):")
             for ip in ips:
                 print(f"     http://{ip}:{port}")

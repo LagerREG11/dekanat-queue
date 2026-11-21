@@ -222,6 +222,7 @@ def test_reports_tab_and_csv_export(client, clock):
     client.post("/dekanat/ticket/1/done")
     html = client.get("/admin?tab=reports").get_data(as_text=True)
     assert "Кезеңдегі есеп" in html and "Қызметтер бойынша" in html and "Аудиториялар бойынша" in html
+    assert 'class="bar-chart"' in html and "Күндер бойынша талондар" in html and "<rect" in html
     r = client.get("/admin/reports.csv?start=2026-11-10&end=2026-11-16")
     assert r.status_code == 200 and "attachment" in r.headers["Content-Disposition"]
     text = r.get_data(as_text=True)

@@ -150,6 +150,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
     _add_profile_columns(conn)
     _add_security_columns(conn)
+    _add_service_en(conn)
 
 
 def _add_profile_columns(conn: sqlite3.Connection) -> None:
@@ -167,6 +168,20 @@ def _add_security_columns(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE users ADD COLUMN recovery_hash TEXT NOT NULL DEFAULT ''")
     if "must_change" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0")
+
+
+SERVICE_NAMES_EN = {"A": "Certificate", "B": "Submitting an application",
+                    "C": "Academic leave / transfer", "D": "Retake", "E": "Transcript / documents",
+                    "F": "Signing an application"}
+
+
+def _add_service_en(conn: sqlite3.Connection) -> None:
+    """Қызметтердің ағылшынша атауы (бос болса — орысшасы көрсетіледі)."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(services)")}
+    if "name_en" not in cols:
+        conn.execute("ALTER TABLE services ADD COLUMN name_en TEXT NOT NULL DEFAULT ''")
+    for code, name in SERVICE_NAMES_EN.items():
+        conn.execute("UPDATE services SET name_en=? WHERE code=? AND name_en=''", (name, code))
 
 
 def _migrate_users(conn: sqlite3.Connection) -> None:
@@ -344,6 +359,7 @@ def seed(conn: sqlite3.Connection, now: datetime | None = None) -> None:
         if not conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone():
             create_user(conn, username, password, name, role, now=now, **extra)
     _update_services_v2(conn)
+    _add_service_en(conn)
     _drop_short_breaks(conn)
 
 
@@ -642,14 +658,14 @@ def admin_delete_user(conn, admin_id: int, user_id: int, now: datetime) -> None:
 # Қызметтер
 # ---------------------------------------------------------------------------
 def list_services(conn, active_only: bool = True) -> list[sqlite3.Row]:
-    sql = "SELECT * FROM services"
+    sql = "SELECT id, code, name_kk, name_ru, COALESCE(NULLIF(name_en, ''), name_ru) AS name_en, avg_minutes, is_active FROM services"
     if active_only:
         sql += " WHERE is_active = 1"
     return conn.execute(sql + " ORDER BY code").fetchall()
 
 
 def get_service(conn, service_id: int) -> sqlite3.Row | None:
-    return conn.execute("SELECT * FROM services WHERE id=?", (service_id,)).fetchone()
+    return conn.execute("SELECT id, code, name_kk, name_ru, COALESCE(NULLIF(name_en, ''), name_ru) AS name_en, avg_minutes, is_active FROM services WHERE id=?", (service_id,)).fetchone()
 
 
 def _validate_service(code: str, name_kk: str, name_ru: str, avg) -> tuple[str, str, str, float]:
@@ -750,7 +766,8 @@ def create_ticket(conn, user, service_id, now: datetime, priority: bool = False,
     return get_ticket_by_token(conn, token)
 
 
-TICKET_SELECT = ("SELECT t.*, s.code AS service_code, s.name_kk, s.name_ru "
+TICKET_SELECT = ("SELECT t.*, s.code AS service_code, s.name_kk, s.name_ru, "
+                 "COALESCE(NULLIF(s.name_en, ''), s.name_ru) AS name_en "
                  "FROM tickets t JOIN services s ON s.id = t.service_id ")
 
 
@@ -844,7 +861,7 @@ def services_overview(conn, now: datetime) -> list[dict]:
     result = []
     for s in list_services(conn):
         n = waiting_count(conn, s["id"], day)
-        result.append({"id": s["id"], "code": s["code"], "name_kk": s["name_kk"],
+        result.append({"id": s["id"], "code": s["code"], "name_kk": s["name_kk"], "name_en": s["name_en"],
                        "name_ru": s["name_ru"], "waiting": n,
                        "minutes": f"{float(s['avg_minutes']):g}",
                        "estimate": estimate_for_service(conn, s, n),
@@ -994,7 +1011,8 @@ def board_data(conn, now: datetime) -> dict:
         "SELECT number, window_no, recall_count, called_at FROM tickets "
         "WHERE day=? AND status='called' ORDER BY called_at DESC, id DESC", (day,)).fetchall()
     waiting = conn.execute(
-        "SELECT t.number, s.name_kk, s.name_ru FROM tickets t JOIN services s ON s.id = t.service_id "
+        "SELECT t.number, s.name_kk, s.name_ru, COALESCE(NULLIF(s.name_en, ''), s.name_ru) AS name_en "
+        "FROM tickets t JOIN services s ON s.id = t.service_id "
         "WHERE t.day=? AND t.status='waiting' "
         "ORDER BY t.priority DESC, t.created_at, t.id", (day,)).fetchall()
     windows = conn.execute(
@@ -1002,7 +1020,8 @@ def board_data(conn, now: datetime) -> dict:
         "AND window_no IS NOT NULL ORDER BY window_no").fetchall()
     return {"called": [dict(r) for r in called],
             "waiting": [r["number"] for r in waiting],
-            "queue": [{"pos": i, "number": r["number"], "name_kk": r["name_kk"], "name_ru": r["name_ru"]}
+            "queue": [{"pos": i, "number": r["number"], "name_kk": r["name_kk"], "name_ru": r["name_ru"],
+                       "name_en": r["name_en"]}
                       for i, r in enumerate(waiting, 1)],
             "windows": [{"window_no": w["window_no"], "on_break": bool(w["on_break"])} for w in windows]}
 

@@ -311,6 +311,29 @@
     <span>{{ t('s_avg_service') }}: <b>{{ sm.avg_service }}</b></span>
   </div>
   {% if not sm.total %}<p class="muted">{{ t('rep_empty') }}</p>{% endif %}
+  {% macro bar_chart(title, items) %}
+    {% set peak = items | map(attribute='total') | max %}
+    {% set rows = items | length %}
+    <h3>{{ title }}</h3>
+    <svg class="bar-chart" viewBox="0 0 640 {{ rows * 34 + 8 }}" role="img" aria-label="{{ title }}">
+      {% for g in items %}
+        {% set y = loop.index0 * 34 + 4 %}
+        {% set full = (g.total / peak * 380) if peak else 0 %}
+        {% set done = (g.done / peak * 380) if peak else 0 %}
+        <text x="0" y="{{ y + 19 }}" class="bc-label">{{ g.key|string|truncate(28, True, '…') }}</text>
+        <rect x="200" y="{{ y + 4 }}" width="{{ full|round(1) }}" height="22" rx="4" class="bc-all"></rect>
+        <rect x="200" y="{{ y + 4 }}" width="{{ done|round(1) }}" height="22" rx="4" class="bc-done"></rect>
+        <text x="{{ 206 + full }}" y="{{ y + 19 }}" class="bc-value">{{ g.total }} ({{ g.done }})</text>
+      {% endfor %}
+    </svg>
+  {% endmacro %}
+  {% if sm.total %}
+    <div class="charts">
+      <div>{{ bar_chart(t('rep_chart_days'), report.by_day) }}</div>
+      <div>{{ bar_chart(t('rep_chart_services'), report.by_service) }}</div>
+    </div>
+    <p class="small muted">{{ t('rep_chart_hint') }}</p>
+  {% endif %}
   {% for title, key, items in [(t('rep_by_service'), 'service', report.by_service), (t('rep_by_window'), 'window', report.by_window), (t('rep_by_day'), 'date', report.by_day)] %}
     {% if items %}
     <h3>{{ title }}</h3>

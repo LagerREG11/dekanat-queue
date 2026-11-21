@@ -551,3 +551,11 @@ table.calendar { width: 100%; border-collapse: separate; border-spacing: 4px; ta
 .recovery-code { font-family: "Courier New", monospace; font-size: 30px; font-weight: 700; letter-spacing: 3px;
   text-align: center; padding: 16px; margin: 12px 0; border: 2px dashed var(--gold); border-radius: 10px;
   background: var(--gold-soft); color: var(--navy-dark); user-select: all; }
+
+/* Есептер диаграммасы (SVG, inline-стильсіз — CSP) */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-top: 12px; }
+.bar-chart { width: 100%; height: auto; display: block; }
+.bar-chart .bc-label { font-size: 17px; fill: var(--text); }
+.bar-chart .bc-value { font-size: 16px; fill: var(--muted); }
+.bar-chart .bc-all { fill: var(--gold-soft); stroke: var(--gold); stroke-width: 1; }
+.bar-chart .bc-done { fill: var(--navy); }
