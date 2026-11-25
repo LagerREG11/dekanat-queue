@@ -132,6 +132,16 @@
     <div class="buttons"><button class="btn btn-primary" type="submit">{{ t('save') }}</button></div>
   </form>
 </section>
+<section class="box">
+  <h2 class="box-title">{{ t('queue_limit_title') }}</h2>
+  <p class="muted small">{{ t('queue_limit_hint') }}</p>
+  <form method="post" action="{{ url_for('admin_queue_limit') }}" class="form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="queue_limit">{{ t('queue_limit_label') }}</label>
+    <input id="queue_limit" name="queue_limit" type="number" min="0" max="500" required value="{{ queue_limit }}">
+    <div class="buttons"><button class="btn btn-primary" type="submit">{{ t('save') }}</button></div>
+  </form>
+</section>
 {% endif %}
 
 {# ---------- Хабарландырулар және ерекше күндер ---------- #}

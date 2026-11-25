@@ -744,6 +744,53 @@ def normalize_recovery_code(code: str) -> str:
     return re.sub(r"[^0-9A-Za-z]", "", code or "").upper()
 
 
+BOOKING_MIN_LEAD = timedelta(hours=2)   # алдын ала брондау: қазірден кемінде 2 сағат кейін
+BOOKING_MAX_DAYS = 14                    # ең көбі 2 апта алға
+BOOKING_STEP_MINUTES = 10                # уақыт 10 минуттық қадаммен
+DEFAULT_QUEUE_LIMIT = 20                 # нақты (тірі) кезекте бір уақытта ең көбі 20 студент
+
+
+def earliest_booking(now: datetime) -> datetime:
+    """Брондауға болатын ең ерте уақыт: қазір + 2 сағат, 10 минутқа дейін жоғары дөңгелектеніп."""
+    t = (now + BOOKING_MIN_LEAD).replace(second=0, microsecond=0)
+    if (now + BOOKING_MIN_LEAD) > t:
+        t += timedelta(minutes=1)
+    return t + timedelta(minutes=(-t.minute) % BOOKING_STEP_MINUTES)
+
+
+def parse_slot(day: str, hhmm: str) -> datetime:
+    try:
+        return datetime.combine(date.fromisoformat((day or "").strip()), parse_hhmm(hhmm))
+    except (ValueError, TypeError, QueueError):
+        raise QueueError("err_book_time")
+
+
+def validate_booking(slot: datetime, now: datetime, schedule: Schedule,
+                     overrides: dict | None = None) -> None:
+    """Брондау уақыты: ≥ қазір+2 сағат, 14 күннен аспайды, жұмыс уақытында, үзілісте емес."""
+    if slot < now + BOOKING_MIN_LEAD:
+        raise QueueError("err_book_early")
+    if slot.date() > now.date() + timedelta(days=BOOKING_MAX_DAYS):
+        raise QueueError("err_book_far")
+    s = day_plan(slot.date(), schedule, overrides).schedule
+    if slot.minute % BOOKING_STEP_MINUTES or s is None:
+        raise QueueError("err_book_time")
+    if not (s.open_at <= slot.time() < s.close_at) or current_pause(slot, s):
+        raise QueueError("err_book_time")
+
+
+def next_booking_slot(now: datetime, schedule: Schedule, overrides: dict | None = None) -> datetime:
+    """Брондауға болатын ең жақын жарамды уақыт (формада әдепкі мән ретінде)."""
+    slot = earliest_booking(now)
+    for _ in range(BOOKING_MAX_DAYS * 24 * 60 // BOOKING_STEP_MINUTES):
+        try:
+            validate_booking(slot, now, schedule, overrides)
+            return slot
+        except QueueError:
+            slot += timedelta(minutes=BOOKING_STEP_MINUTES)
+    return earliest_booking(now)
+
+
 def validate_full_name(full_name: str) -> str:
     """Аты-жөнін тексереді (тіркелудегі ереже бойынша)."""
     full_name = " ".join((full_name or "").split())

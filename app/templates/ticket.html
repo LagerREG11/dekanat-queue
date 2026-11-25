@@ -18,6 +18,7 @@
     <tr><td>{{ t('created') }}</td><td>{{ ticket.created_at[11:16] }}</td></tr>
   </table>
 
+  {% if view.booked %}<div class="alert alert-info">{{ t('book_info').replace('{dt}', view.booked[8:10] ~ '.' ~ view.booked[5:7] ~ '.' ~ view.booked[:4] ~ ' ' ~ view.booked[11:16]) }}</div>{% endif %}
   <div class="alert alert-info" id="t-soon" role="status" {{ '' if view.status == 'waiting' and view.ahead <= 2 else 'hidden' }}>{{ t('soon_alert').replace('{n}', view.ahead|string) }}</div>
   <div class="alert alert-warn" id="t-late" {{ '' if view.late else 'hidden' }}>{{ t('late_warning') }}</div>
   <p class="small muted">{{ t('ticket_save') }} {{ t('auto_refresh') }}.</p>

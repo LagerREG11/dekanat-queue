@@ -407,6 +407,7 @@ def _ticket_view(ticket) -> dict:
         "service_minutes": ql_minutes(service["avg_minutes"]),
         "window": ticket["window_no"],
         "recall": ticket["recall_count"],
+        "booked": ticket["booked_at"][:16] if ticket["booked_at"] else "",
         "late": (ticket["status"] == ql.WAITING and current_app.config["CHECK_HOURS"]
                  and not ql.can_be_served_today(now(), est, schedule())),
     }
@@ -763,13 +764,14 @@ def _register_student_routes(app: Flask) -> None:
         user = current_user()
         tickets = repo.user_tickets(db(), user["id"])
         today = now().strftime("%Y-%m-%d")
-        is_active = lambda tk: tk["day"] == today and tk["status"] in ql.ACTIVE_STATUSES
+        is_active = lambda tk: tk["day"] >= today and tk["status"] in ql.ACTIVE_STATUSES  # брондау да
         active = [dict(tk, view=_ticket_view(tk)) for tk in tickets if is_active(tk)]
         history = [tk for tk in tickets if not is_active(tk)]
         return render_template(
             "student.html", services=repo.services_overview(db(), now()),
-            active=active, history=history,
-            is_open=open_now())
+            active=active, history=history, is_open=open_now(),
+            book_min=ql.earliest_booking(now()), book_next=ql.next_booking_slot(now(), schedule(), overrides()),
+            now_ts=now().strftime("%Y-%m-%d %H:%M:%S"), book_max=now().date() + timedelta(days=ql.BOOKING_MAX_DAYS))
 
     @app.get("/api/student/tickets")
     @role_required(ql.STUDENT)
@@ -777,9 +779,35 @@ def _register_student_routes(app: Flask) -> None:
         """Студент кабинеті үшін: өз талондарының күйлері (өзгерсе, бет жаңарады)."""
         rows = repo.user_tickets(db(), current_user()["id"])
         sig = ",".join(f"{r['id']}:{r['status']}:{r['window_no'] or ''}" for r in rows)
-        queue = ",".join(str(repo.people_ahead(db(), r)) for r in rows if r["status"] == ql.WAITING)
+        queue = ",".join(str(repo.people_ahead(db(), r, now())) for r in rows if r["status"] == ql.WAITING)
         return jsonify(signature=sig + "|" + queue)
 
+
+
+def _register_booking_routes(app: Flask) -> None:
+    @app.post("/student/book")
+    @role_required(ql.STUDENT)
+    def student_book():
+        """Алдын ала уақыт брондау (кемінде 2 сағаттан кейін, жұмыс уақытында)."""
+        f = request.form
+        try:
+            slot = ql.parse_slot(f.get("day"), f.get("time"))
+            ticket = repo.create_booking(db(), current_user(), f.get("service_id"), slot, now())
+        except ql.QueueError as e:
+            flash_error(e)
+            return redirect(url_for("student_cabinet"))
+        flash("msg_booked", "ok")
+        return redirect(url_for("ticket_page", token=ticket["token"]))
+
+    @app.post("/admin/queue-limit")
+    @role_required(*ql.MANAGER_ROLES)
+    def admin_queue_limit():
+        try:
+            repo.set_queue_limit(db(), current_user()["id"], request.form.get("queue_limit"), now())
+            flash("msg_saved", "ok")
+        except ql.QueueError as e:
+            flash_error(e)
+        return back("schedule")
 
 
 def _register_student_ticket_routes(app: Flask) -> None:
@@ -941,7 +969,7 @@ def _register_admin_routes(app: Flask) -> None:
             user_services=user_services, pending=repo.count_pending(conn),
             services=repo.list_services(conn, active_only=False),
             tickets=tickets, statuses=repo.ALL_STATUSES, report=_report_context(tab),
-            stats=repo.stats_today(conn, now()),
+            stats=repo.stats_today(conn, now()), queue_limit=repo.get_queue_limit(conn),
             sched_form=ql.schedule_to_dict(schedule()),
             announcements=repo.list_announcements(conn, now()),
             day_overrides=repo.list_overrides(conn, now().strftime("%Y-%m-%d")),
@@ -1245,6 +1273,7 @@ ROUTE_GROUPS = (
     _register_avatar_view_routes,
     _register_admin_announcement_routes,
     _register_report_routes,
+    _register_booking_routes,
     _register_recovery_routes,
     _register_must_change_guard,
     _register_cli,

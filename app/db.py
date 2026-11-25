@@ -151,6 +151,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     _add_profile_columns(conn)
     _add_security_columns(conn)
     _add_service_en(conn)
+    _add_booking_column(conn)
 
 
 def _add_profile_columns(conn: sqlite3.Connection) -> None:
@@ -219,6 +220,34 @@ def _migrate_users(conn: sqlite3.Connection) -> None:
 # ---------------------------------------------------------------------------
 # Баптаулар: жұмыс кестесі
 # ---------------------------------------------------------------------------
+def _add_booking_column(conn: sqlite3.Connection) -> None:
+    """Алдын ала брондалған талонның уақыты (кәдімгі талонда — NULL)."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(tickets)")}
+    if "booked_at" not in cols:
+        conn.execute("ALTER TABLE tickets ADD COLUMN booked_at TEXT")
+
+
+# Брондалған талон уақыты келгенге дейін кезекке кірмейді
+DUE = "(booked_at IS NULL OR booked_at <= ?)"
+DUE_T = "(t.booked_at IS NULL OR t.booked_at <= ?)"
+
+
+def get_queue_limit(conn) -> int:
+    """Нақты кезекте бір уақытта күте алатын студенттер саны (0 — шектеусіз)."""
+    row = conn.execute("SELECT value FROM settings WHERE key='queue_limit'").fetchone()
+    return int(row[0]) if row and str(row[0]).isdigit() else ql.DEFAULT_QUEUE_LIMIT
+
+
+def set_queue_limit(conn, actor_id: int, value, now: datetime) -> None:
+    _require_manager(conn, actor_id)
+    text = str(value if value is not None else "").strip()
+    if not text.isdigit() or int(text) > 500:
+        raise ql.QueueError("err_queue_limit")
+    conn.execute("INSERT INTO settings (key, value) VALUES ('queue_limit', ?) "
+                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(int(text)),))
+    log(conn, actor_id, "queue_limit", text, now)
+
+
 def get_schedule(conn) -> ql.Schedule:
     row = conn.execute("SELECT value FROM settings WHERE key='schedule'").fetchone()
     if row is None:
@@ -744,25 +773,63 @@ def create_ticket(conn, user, service_id, now: datetime, priority: bool = False,
                   check_hours: bool = True) -> sqlite3.Row:
     """Студентке жаңа талон береді. Ережелер бұзылса QueueError шығарады."""
     service = _ticket_service(conn, user, service_id, now, check_hours)
-    service_id = service["id"]
     day = now.strftime("%Y-%m-%d")
     conn.execute("BEGIN IMMEDIATE")  # нөмірлер қайталанбауы үшін жазуды бұғаттаймыз
     try:
-        _check_ticket_limits(conn, day, user["id"], service_id)
-        last = conn.execute("SELECT MAX(seq) FROM tickets WHERE day=? AND service_id=?",
-                            (day, service_id)).fetchone()[0]
-        seq = ql.next_sequence(last)
-        number = ql.format_ticket_number(service["code"], seq)
-        token = secrets.token_urlsafe(16)
-        conn.execute(
-            "INSERT INTO tickets (number, seq, day, service_id, user_id, full_name, student_id, "
-            "group_name, priority, token, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (number, seq, day, service_id, user["id"], user["full_name"], user["student_id"],
-             user["group_name"], 1 if priority else 0, token, ts(now)))
+        _check_ticket_limits(conn, day, user["id"], service["id"])
+        _check_queue_limit(conn, day)
+        token = _insert_ticket(conn, user, service, day, now, priority=priority, booked=False)
         conn.execute("COMMIT")
     except Exception:
         conn.execute("ROLLBACK")
         raise
+    return get_ticket_by_token(conn, token)
+
+
+def live_waiting(conn, day: str) -> int:
+    """Нақты кезектегі күтушілер (брондалғандар шекке кірмейді)."""
+    return conn.execute("SELECT COUNT(*) FROM tickets WHERE day=? AND status='waiting' "
+                        "AND booked_at IS NULL", (day,)).fetchone()[0]
+
+
+def _check_queue_limit(conn, day: str) -> None:
+    limit = get_queue_limit(conn)
+    if limit and live_waiting(conn, day) >= limit:
+        raise ql.QueueError("err_queue_full")
+
+
+def _insert_ticket(conn, user, service, day: str, created: datetime, priority: bool, booked: bool) -> str:
+    """Талонды жазу (транзакция ішінде). Брондауда created_at = booked_at = брондалған уақыт."""
+    last = conn.execute("SELECT MAX(seq) FROM tickets WHERE day=? AND service_id=?",
+                        (day, service["id"])).fetchone()[0]
+    seq = ql.next_sequence(last)
+    token = secrets.token_urlsafe(16)
+    conn.execute(
+        "INSERT INTO tickets (number, seq, day, service_id, user_id, full_name, student_id, "
+        "group_name, priority, token, created_at, booked_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (ql.format_ticket_number(service["code"], seq), seq, day, service["id"], user["id"],
+         user["full_name"], user["student_id"], user["group_name"], 1 if (priority or booked) else 0,
+         token, ts(created), ts(created) if booked else None))
+    return token
+
+
+def create_booking(conn, user, service_id, slot: datetime, now: datetime) -> sqlite3.Row:
+    """Алдын ала брондау: кезек шегінен тыс; уақыты келгенде талон кезектің басына шығады."""
+    service = _ticket_service(conn, user, service_id, now, check_hours=False)
+    ql.validate_booking(slot, now, get_schedule(conn), get_overrides(conn))
+    day = slot.strftime("%Y-%m-%d")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _check_ticket_limits(conn, day, user["id"], service["id"])
+        if conn.execute("SELECT 1 FROM tickets WHERE service_id=? AND booked_at=? "
+                        "AND status IN ('waiting','called')", (service["id"], ts(slot))).fetchone():
+            raise ql.QueueError("err_slot_taken")
+        token = _insert_ticket(conn, user, service, day, slot, priority=True, booked=True)
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    log(conn, user["id"], "booking", f"{service['code']} {ts(slot)}", now)
     return get_ticket_by_token(conn, token)
 
 
@@ -814,22 +881,23 @@ def backup_bytes(conn) -> bytes:
         os.remove(path)
 
 
-def people_ahead(conn, ticket) -> int:
-    """Осы талонның алдында тұрған күтудегі адамдар саны."""
-    if ticket["status"] != ql.WAITING:
+def people_ahead(conn, ticket, now: datetime | None = None) -> int:
+    """Осы талонның алдында тұрған күтудегі адамдар саны (уақыты келмеген брондаулар есепке алынбайды)."""
+    stamp = ts(now or datetime.now())
+    if ticket["status"] != ql.WAITING or (ticket["booked_at"] and ticket["booked_at"] > stamp):
         return 0
     return conn.execute(
         "SELECT COUNT(*) FROM tickets WHERE day=? AND service_id=? AND status='waiting' "
-        "AND (priority > ? OR (priority = ? AND (created_at < ? OR "
+        f"AND {DUE} AND (priority > ? OR (priority = ? AND (created_at < ? OR "
         "(created_at = ? AND id < ?))))",
-        (ticket["day"], ticket["service_id"], ticket["priority"], ticket["priority"],
+        (ticket["day"], ticket["service_id"], stamp, ticket["priority"], ticket["priority"],
          ticket["created_at"], ticket["created_at"], ticket["id"])).fetchone()[0]
 
 
-def waiting_count(conn, service_id: int, day: str) -> int:
+def waiting_count(conn, service_id: int, day: str, now: datetime | None = None) -> int:
     return conn.execute(
-        "SELECT COUNT(*) FROM tickets WHERE day=? AND service_id=? AND status='waiting'",
-        (day, service_id)).fetchone()[0]
+        f"SELECT COUNT(*) FROM tickets WHERE day=? AND service_id=? AND status='waiting' AND {DUE}",
+        (day, service_id, ts(now or datetime.now()))).fetchone()[0]
 
 
 def recent_durations(conn, service_id: int, limit: int = 20) -> list[float]:
@@ -860,7 +928,7 @@ def services_overview(conn, now: datetime) -> list[dict]:
     day = now.strftime("%Y-%m-%d")
     result = []
     for s in list_services(conn):
-        n = waiting_count(conn, s["id"], day)
+        n = waiting_count(conn, s["id"], day, now)
         result.append({"id": s["id"], "code": s["code"], "name_kk": s["name_kk"], "name_en": s["name_en"],
                        "name_ru": s["name_ru"], "waiting": n,
                        "minutes": f"{float(s['avg_minutes']):g}",
@@ -893,9 +961,9 @@ def waiting_for_services(conn, service_ids: set[int], now: datetime) -> list[sql
     return conn.execute(
         "SELECT t.number, t.full_name, t.group_name, t.priority, t.created_at, s.code "
         "FROM tickets t JOIN services s ON s.id=t.service_id "
-        f"WHERE t.day=? AND t.status='waiting' AND t.service_id IN ({placeholders}) "
+        f"WHERE t.day=? AND t.status='waiting' AND {DUE_T} AND t.service_id IN ({placeholders}) "
         "ORDER BY t.priority DESC, t.created_at, t.id",
-        (now.strftime("%Y-%m-%d"), *ids)).fetchall()
+        (now.strftime("%Y-%m-%d"), ts(now), *ids)).fetchall()
 
 
 def current_ticket(conn, operator_id: int) -> sqlite3.Row | None:
@@ -926,7 +994,7 @@ def call_next(conn, operator_id: int, now: datetime) -> sqlite3.Row | None:
         day = now.strftime("%Y-%m-%d")
         rows = conn.execute(
             "SELECT id, service_id, created_at, priority FROM tickets "
-            "WHERE day=? AND status='waiting'", (day,)).fetchall()
+            f"WHERE day=? AND status='waiting' AND {DUE}", (day, ts(now))).fetchall()
         nxt = ql.pick_next([dict(r) for r in rows], user_service_ids(conn, operator_id))
         if nxt is None:
             conn.execute("COMMIT")
@@ -1013,8 +1081,8 @@ def board_data(conn, now: datetime) -> dict:
     waiting = conn.execute(
         "SELECT t.number, s.name_kk, s.name_ru, COALESCE(NULLIF(s.name_en, ''), s.name_ru) AS name_en "
         "FROM tickets t JOIN services s ON s.id = t.service_id "
-        "WHERE t.day=? AND t.status='waiting' "
-        "ORDER BY t.priority DESC, t.created_at, t.id", (day,)).fetchall()
+        f"WHERE t.day=? AND t.status='waiting' AND {DUE_T} "
+        "ORDER BY t.priority DESC, t.created_at, t.id", (day, ts(now))).fetchall()
     windows = conn.execute(
         "SELECT window_no, on_break FROM users WHERE on_duty=1 AND is_active=1 "
         "AND window_no IS NOT NULL ORDER BY window_no").fetchall()

@@ -36,6 +36,25 @@
   </section>
 
   <section class="box">
+    <h2 class="box-title">{{ t('book_title') }}</h2>
+    <p class="muted small">{{ t('book_hint') }}</p>
+    <form method="post" action="{{ url_for('student_book') }}" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="book-service">{{ t('f_service') }}</label>
+      <select id="book-service" name="service_id" required>
+        {% for s in services %}<option value="{{ s.id }}">{{ s['name_' + lang] }}</option>{% endfor %}
+      </select>
+      <label for="book-day">{{ t('book_date') }}</label>
+      <input id="book-day" name="day" type="date" required value="{{ book_next.strftime('%Y-%m-%d') }}"
+             min="{{ book_min.strftime('%Y-%m-%d') }}" max="{{ book_max.isoformat() }}">
+      <label for="book-time">{{ t('book_time') }}</label>
+      <input id="book-time" name="time" type="time" required step="600" value="{{ book_next.strftime('%H:%M') }}">
+      <span class="hint">{{ t('book_earliest').replace('{dt}', book_min.strftime('%d.%m.%Y %H:%M')) }}</span>
+      <div class="buttons"><button class="btn btn-primary" type="submit">{{ t('book_submit') }}</button></div>
+    </form>
+  </section>
+
+  <section class="box">
     <h2 class="box-title">{{ t('my_active') }}</h2>
     {% for tk in active %}
       <div class="my-ticket {{ 'is-called' if tk.status == 'called' }}">
@@ -44,6 +63,7 @@
           <span class="status status-{{ tk.status }}">{{ tk.view.status_text }}</span><br>
           <span class="small muted">{{ tk['name_' + lang] }} ·
             {% if tk.status == 'called' %}{{ t('window') }} {{ tk.window_no }}
+            {% elif tk.booked_at and tk.booked_at > now_ts %}{{ t('book_at') }}: {{ tk.view.booked[8:10] }}.{{ tk.view.booked[5:7] }}.{{ tk.view.booked[:4] }} {{ tk.view.booked[11:16] }}
             {% else %}{{ t('ahead') }}: {{ tk.view.ahead }}, ~{{ tk.view.estimate }} {{ t('min') }}{% endif %}</span>
         </div>
         <div class="acts">
